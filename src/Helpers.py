@@ -1,9 +1,14 @@
-def clean_input_file(text):
+import unittest
+
+def clean_text(text):
     cleaned = ""
     in_comment = False
 
     line: str
     for line in text.splitlines():
+        if line.strip() == "":
+            continue
+
         if in_comment:
             end_index = line.find("*/")
             if end_index != -1:
@@ -11,14 +16,6 @@ def clean_input_file(text):
                 in_comment = False
                 if line.strip() != "":
                     cleaned += line.strip()
-            else:
-                continue
-
-        index = line.find("//")
-        if index != -1:
-            line = line[:index]
-            if line.strip() != "":
-                cleaned += line.strip()
             else:
                 continue
 
@@ -32,6 +29,17 @@ def clean_input_file(text):
                 in_comment = False
                 if line.strip() != "":
                     cleaned += line.strip()
+                else:
+                    continue
+            else:
+                continue
+
+        index = line.find("//")
+        if index != -1:
+            line = line[:index]
+            if line.strip() != "":
+                cleaned += line.strip()
+                continue
             else:
                 continue
 
@@ -39,32 +47,3 @@ def clean_input_file(text):
         cleaned += line
 
     return cleaned
-
-class JackTokenizer:
-    def __init__(self, path):
-        f = open(path)
-        self.inFile = clean_input_file(f.read())
-
-    def has_more_tokens(self):
-        pass
-
-    def advance(self):
-        pass
-
-    def token_type(self):
-        pass
-
-    def key_word(self):
-        pass
-
-    def symbol(self):
-        pass
-
-    def identifier(self):
-        pass
-
-    def int_val(self):
-        pass
-
-    def string_val(self):
-        pass

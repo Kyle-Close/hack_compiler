@@ -4,10 +4,6 @@ from pathlib import Path
 from JackTokenizer import JackTokenizer
 
 
-def print_hi(name):
-    print(f'Hi, {name}')
-
-
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         sys.exit(f"Expected 2 arguments but got {len(sys.argv)}.")
@@ -24,7 +20,7 @@ if __name__ == '__main__':
                 continue
 
             tokenizer = JackTokenizer(child)
-            print(tokenizer.inFile)
+            tokenizer.advance()
 
     else:
         sys.exit(f"Path to file or directory is invalid: {path}")

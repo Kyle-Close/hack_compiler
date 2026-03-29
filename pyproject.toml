@@ -3,4 +3,6 @@ name = "jackcompiler"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "pytest>=9.0.2",
+]
