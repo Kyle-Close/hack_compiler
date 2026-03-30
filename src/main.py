@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 from JackTokenizer import JackTokenizer
+from Enums import TokenType
 
 
 if __name__ == '__main__':
@@ -20,7 +21,10 @@ if __name__ == '__main__':
                 continue
 
             tokenizer = JackTokenizer(child)
-            tokenizer.advance()
+            while tokenizer.has_more_tokens():
+                tokenizer.advance()
+                if tokenizer.token_type() == TokenType.STRING_CONST:
+                    print(tokenizer.string_val())
 
     else:
         sys.exit(f"Path to file or directory is invalid: {path}")
