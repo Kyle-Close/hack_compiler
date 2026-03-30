@@ -1,5 +1,5 @@
 from Helpers import clean_text
-from Enums import TokenType, KeyWord
+from src.Enums import TokenType, KeyWord
 
 class JackTokenizer:
     SYMBOLS = {"{", "}", "(", ")", "[", "]", ".", ",", ";", "+", "-", "*", "/", "&", "|", "<", ">", "=", "~"}

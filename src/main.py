@@ -3,7 +3,7 @@ from pathlib import Path
 
 from JackTokenizer import JackTokenizer
 from Enums import TokenType
-
+from src.CompilationEngine import CompilationEngine
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
@@ -20,11 +20,7 @@ if __name__ == '__main__':
             if child.suffix != ".jack":
                 continue
 
-            tokenizer = JackTokenizer(child)
-            while tokenizer.has_more_tokens():
-                tokenizer.advance()
-                if tokenizer.token_type() == TokenType.STRING_CONST:
-                    print(tokenizer.string_val())
+            engine = CompilationEngine(child)
 
     else:
         sys.exit(f"Path to file or directory is invalid: {path}")
