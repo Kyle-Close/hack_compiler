@@ -14,6 +14,7 @@ if __name__ == '__main__':
     if path.is_file():
         if path.suffix != ".jack":
             sys.exit(f"The file provided is not a jack program: {path}")
+        engine = CompilationEngine(path)
 
     elif path.is_dir():
         for child in path.iterdir():

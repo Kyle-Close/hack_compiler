@@ -47,3 +47,9 @@ def clean_text(text):
         cleaned += line
 
     return cleaned
+
+def force_empty_newlines(element, space="  ", level=0):
+    for child in element:
+        if len(child) == 0 and not child.text:
+            child.text = "\n" + space * (level + 1)
+        force_empty_newlines(child, space, level + 1)
