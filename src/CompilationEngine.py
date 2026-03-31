@@ -38,7 +38,8 @@ class CompilationEngine:
         self.compile_class_var_dec(class_el)
         self.compile_subroutine(class_el)
 
-        pass
+        # symbol - '}'
+        ET.SubElement(class_el, "symbol").text = self.tokenizer.current_token
 
     def compile_class_var_dec(self, parent_el):
         # ('static' | 'field') type varName (',' varName)* ';'
@@ -104,9 +105,7 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # parameterList
-        if self.tokenizer.current_token != ")":
-            param_list_el = ET.SubElement(class_var_dec_el, "parameterList")
-            self.compile_parameter_list(param_list_el)
+        self.compile_parameter_list(class_var_dec_el)
 
         # symbol - ')'
         ET.SubElement(class_var_dec_el, "symbol").text = self.tokenizer.current_token
@@ -115,7 +114,11 @@ class CompilationEngine:
         # subroutineBody
         self.compile_subroutine_body(class_var_dec_el)
 
-    def compile_parameter_list(self, param_list_el):
+        self.compile_subroutine(parent_el)
+
+    def compile_parameter_list(self, parent_el):
+        param_list_el = ET.SubElement(parent_el, "parameterList")
+
         if self.tokenizer.current_token == ")":
             return
 
@@ -136,7 +139,7 @@ class CompilationEngine:
             ET.SubElement(param_list_el, "symbol").text = self.tokenizer.current_token
             self.tokenizer.advance()
 
-        self.compile_parameter_list(param_list_el)
+        self.compile_parameter_list(parent_el)
 
     def compile_subroutine_body(self, parent_el):
         # '{' varDec* statements '}'
@@ -150,7 +153,12 @@ class CompilationEngine:
         self.compile_var_dec(subroutine_body_el)
 
         # statements
-        self.compile_statements(subroutine_body_el)
+        statements_el = ET.SubElement(subroutine_body_el, "statements")
+        self.compile_statements(statements_el)
+
+        # symbol - '}'
+        ET.SubElement(subroutine_body_el, "symbol").text = self.tokenizer.current_token
+        self.tokenizer.advance()
 
     def compile_var_dec(self, parent_el):
         if self.tokenizer.key_word() != KeyWord.VAR:
@@ -191,7 +199,25 @@ class CompilationEngine:
     def compile_statements(self, parent_el):
         # statement*
         # letStatement | ifStatement | whileStatement | doStatement | returnStatement
-        pass
+
+        keyword = self.tokenizer.key_word()
+        if keyword == KeyWord.LET:
+            self.compile_let(parent_el)
+            self.compile_statements(parent_el)
+        elif keyword == KeyWord.IF:
+            self.compile_if(parent_el)
+            self.compile_statements(parent_el)
+        elif keyword == KeyWord.WHILE:
+            self.compile_while(parent_el)
+            self.compile_statements(parent_el)
+        elif keyword == KeyWord.DO:
+            self.compile_do(parent_el)
+            self.compile_statements(parent_el)
+        elif keyword == KeyWord.RETURN:
+            self.compile_return(parent_el)
+            self.compile_statements(parent_el)
+        else:
+            return
 
     def compile_let(self, parent_el):
         # 'let' varName ('[' expression ']')? '=' expression ';'
@@ -205,74 +231,183 @@ class CompilationEngine:
         ET.SubElement(let_statement_el, "identifier").text = self.tokenizer.current_token
         self.tokenizer.advance()
 
-        # TODO: handle expression
+        if self.tokenizer.current_token == "[":
+            ET.SubElement(let_statement_el, "symbol").text = self.tokenizer.current_token # '['
+            self.tokenizer.advance()
 
-        # symbol - '='
-        ET.SubElement(let_statement_el, "symbol").text = self.tokenizer.current_token
+            self.compile_expression(let_statement_el)
+
+            ET.SubElement(let_statement_el, "symbol").text = self.tokenizer.current_token # ']'
+            self.tokenizer.advance()
+
+        ET.SubElement(let_statement_el, "symbol").text = self.tokenizer.current_token  # '='
         self.tokenizer.advance()
 
-        pass
+        self.compile_expression(let_statement_el)
 
-    def compile_if(self):
-        pass
+        ET.SubElement(let_statement_el, "symbol").text = self.tokenizer.current_token  # ';'
+        self.tokenizer.advance()
 
-    def compile_while(self):
-        pass
+    def compile_if(self, parent_el):
+        # 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
+        if_statement_el = ET.SubElement(parent_el, "ifStatement")
 
-    def compile_do(self):
-        pass
+        ET.SubElement(if_statement_el, "keyword").text = self.tokenizer.current_token  # 'if'
+        self.tokenizer.advance()
 
-    def compile_return(self):
-        pass
+        ET.SubElement(if_statement_el, "symbol").text = self.tokenizer.current_token  # '('
+        self.tokenizer.advance()
+
+        self.compile_expression(if_statement_el)
+
+        ET.SubElement(if_statement_el, "symbol").text = self.tokenizer.current_token  # ')'
+        self.tokenizer.advance()
+
+        ET.SubElement(if_statement_el, "symbol").text = self.tokenizer.current_token  # '{'
+        self.tokenizer.advance()
+
+        self.compile_statements(if_statement_el)
+
+        ET.SubElement(if_statement_el, "symbol").text = self.tokenizer.current_token  # '}'
+        self.tokenizer.advance()
+
+        if self.tokenizer.key_word() == KeyWord.ELSE:
+            ET.SubElement(if_statement_el, "keyword").text = self.tokenizer.current_token  # 'else'
+            self.tokenizer.advance()
+
+            ET.SubElement(if_statement_el, "symbol").text = self.tokenizer.current_token  # '{'
+            self.tokenizer.advance()
+
+            self.compile_statements(if_statement_el)
+
+            ET.SubElement(if_statement_el, "symbol").text = self.tokenizer.current_token  # '}'
+            self.tokenizer.advance()
+
+    def compile_while(self, parent_el):
+        # 'while' '(' expression ')' '{' statements '}'
+        while_statement_el = ET.SubElement(parent_el, "whileStatement")
+
+        ET.SubElement(while_statement_el, "keyword").text = self.tokenizer.current_token  # 'while'
+        self.tokenizer.advance()
+
+        ET.SubElement(while_statement_el, "symbol").text = self.tokenizer.current_token  # '('
+        self.tokenizer.advance()
+
+        self.compile_expression(while_statement_el)
+
+        ET.SubElement(while_statement_el, "symbol").text = self.tokenizer.current_token  # ')'
+        self.tokenizer.advance()
+
+        ET.SubElement(while_statement_el, "symbol").text = self.tokenizer.current_token  # '{'
+        self.tokenizer.advance()
+
+        self.compile_statements(while_statement_el)
+
+        ET.SubElement(while_statement_el, "symbol").text = self.tokenizer.current_token  # '}'
+        self.tokenizer.advance()
+
+    def compile_do(self, parent_el):
+        # 'do' routineCall
+        do_statement_el = ET.SubElement(parent_el, "doStatement")
+
+        ET.SubElement(do_statement_el, "keyword").text = self.tokenizer.current_token  # 'do'
+        self.tokenizer.advance()
+
+        self.compile_term(do_statement_el)
+
+    def compile_return(self, parent_el):
+        # 'return' expression? ';'
+        return_statement_el = ET.SubElement(parent_el, "returnStatement")
+
+        ET.SubElement(return_statement_el, "keyword").text = self.tokenizer.current_token  # 'return'
+        self.tokenizer.advance()
+
+        if self.tokenizer.current_token != ";":
+            self.compile_expression(return_statement_el)
+
+        ET.SubElement(return_statement_el, "symbol").text = self.tokenizer.current_token  # ';'
+        self.tokenizer.advance()
 
     # defer
     def compile_expression(self, parent_el):
         # term (op term)*
-        self.compile_term(parent_el)
-        pass
+        operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
+        expression_el = ET.SubElement(parent_el, "expression")
+
+        self.compile_term(expression_el)
+
+        while self.tokenizer.current_token in operators:
+            ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token  # op
+            self.tokenizer.advance()
+            self.compile_term(expression_el)
 
     def compile_term(self, parent_el):
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
+        if self.tokenizer.token_type() == TokenType.IDENTIFIER:
+            current_token = self.tokenizer.current_token
+            self.tokenizer.advance() # now points to 1 ahead
+
+            if self.tokenizer.current_token == "(":  # subroutineCall
+                ET.SubElement(parent_el, "identifier").text = current_token #subroutineName
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token  # '('
+                self.compile_expression_list(parent_el)
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token  # ')'
+                self.tokenizer.advance()
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token  # ';'
+                self.tokenizer.advance()
+                return
+            elif self.tokenizer.current_token == ".": # subroutineCall
+                ET.SubElement(parent_el, "identifier").text = current_token
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token # '.'
+                self.tokenizer.advance()
+                ET.SubElement(parent_el, "identifier").text = self.tokenizer.current_token
+                self.tokenizer.advance()
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token # '('
+                self.tokenizer.advance()
+                self.compile_expression_list(parent_el)
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token # ')'
+                self.tokenizer.advance()
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token  # ';'
+                self.tokenizer.advance()
+                return
+            elif self.tokenizer.current_token == "[": # varName '[' expression ']'
+                ET.SubElement(parent_el, "identifier").text = current_token
+                ET.SubElement(parent_el, "symbol").text = self.tokenizer.current_token
+                self.tokenizer.advance()
+                self.compile_expression(parent_el)
+                return
+
         term_el = ET.SubElement(parent_el, "term")
-        current_token = self.tokenizer.current_token
-        self.tokenizer.advance() # now points to 1 ahead
 
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST: # integerConstant
-            ET.SubElement(term_el, "integerConstant").text = current_token
+            ET.SubElement(term_el, "integerConstant").text = self.tokenizer.current_token
         elif token_type == TokenType.STRING_CONST: # stringConstant
-            ET.SubElement(term_el, "stringConstant").text = current_token
+            ET.SubElement(term_el, "stringConstant").text = self.tokenizer.current_token
         elif token_type == TokenType.KEYWORD: # keywordConstant
-            ET.SubElement(term_el, "keywordConstant").text = current_token
-        elif current_token == "-" or current_token == "~": # unaryOp term
+            ET.SubElement(term_el, "keywordConstant").text = self.tokenizer.current_token
+        elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~": # unaryOp term
             unary_op_term_el = ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token
             self.compile_term(unary_op_term_el)
-        elif current_token == "(": # '(' expression ')'
-            ET.SubElement(term_el, "symbol").text = current_token
-            self.compile_expression(term_el)
-        elif self.tokenizer.current_token == "[": # varName '[' expression ']'
-            ET.SubElement(term_el, "identifier").text = current_token
+        elif self.tokenizer.current_token == "(": # '(' expression ')'
             ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token
-            self.tokenizer.advance()
             self.compile_expression(term_el)
-        elif self.tokenizer.current_token == "(":  # subroutineCall
-            ET.SubElement(term_el, "identifier").text = current_token #subroutineName
-            ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token  # (
-            self.compile_expression_list(term_el)
-            ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token  # )
-        elif self.tokenizer.current_token == ".": # subroutineCall
-            ET.SubElement(term_el, "identifier").text = current_token
-            ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token # .
-            self.tokenizer.advance()
-            ET.SubElement(term_el, "identifier").text = self.tokenizer.current_token
-            self.tokenizer.advance()
-            ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token # (
-            self.compile_expression_list(term_el)
-            ET.SubElement(term_el, "symbol").text = self.tokenizer.current_token # )
         else: # varName
-            ET.SubElement(term_el, "identifier").text = current_token
+            ET.SubElement(term_el, "identifier").text = self.tokenizer.current_token
             return
 
     def compile_expression_list(self, parent_el):
-        ET.SubElement(parent_el, "expressionList")
-        self.compile_expression()
+        # (expression (',' expression)*)?
+        expression_list_el = ET.SubElement(parent_el, "expressionList")
+
+        if self.tokenizer.current_token == ")":
+            return
+
+        self.compile_expression(expression_list_el)
+
+        while self.tokenizer.current_token == ",":
+            # symbol - ','
+            ET.SubElement(expression_list_el, "symbol").text = self.tokenizer.current_token
+            self.tokenizer.advance()
+
+            self.compile_expression(expression_list_el)

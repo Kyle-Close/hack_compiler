@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="uv (JackCompiler)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="uv (JackCompiler)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="uv (hack_compiler)" project-jdk-type="Python SDK" />
 </project>
