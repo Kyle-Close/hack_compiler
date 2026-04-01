@@ -236,7 +236,7 @@ class CompilationEngine:
             ET.SubElement(let_statement_el, "symbol").text = f" {self.tokenizer.current_token} " # '['
             self.tokenizer.advance()
 
-            self.compile_expression(let_statement_el)
+            self.compile_expression(let_statement_el, False)
 
             ET.SubElement(let_statement_el, "symbol").text = f" {self.tokenizer.current_token} " # ']'
             self.tokenizer.advance()
@@ -244,7 +244,7 @@ class CompilationEngine:
         ET.SubElement(let_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '='
         self.tokenizer.advance()
 
-        self.compile_expression(let_statement_el)
+        self.compile_expression(let_statement_el, False)
 
         ET.SubElement(let_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
@@ -259,7 +259,7 @@ class CompilationEngine:
         ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '('
         self.tokenizer.advance()
 
-        self.compile_expression(if_statement_el)
+        self.compile_expression(if_statement_el, False)
 
         ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
         self.tokenizer.advance()
@@ -296,7 +296,7 @@ class CompilationEngine:
         ET.SubElement(while_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '('
         self.tokenizer.advance()
 
-        self.compile_expression(while_statement_el)
+        self.compile_expression(while_statement_el, False)
 
         ET.SubElement(while_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
         self.tokenizer.advance()
@@ -311,13 +311,16 @@ class CompilationEngine:
         self.tokenizer.advance()
 
     def compile_do(self, parent_el):
-        # 'do' routineCall
+        # 'do' routineCall ';'
         do_statement_el = ET.SubElement(parent_el, "doStatement")
 
         ET.SubElement(do_statement_el, "keyword").text = f" {self.tokenizer.current_token} "  # 'do'
         self.tokenizer.advance()
 
-        self.compile_term(do_statement_el)
+        self.compile_expression(do_statement_el, True)
+
+        ET.SubElement(do_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
+        self.tokenizer.advance()
 
     def compile_return(self, parent_el):
         # 'return' expression? ';'
@@ -327,97 +330,109 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         if self.tokenizer.current_token != ";":
-            self.compile_expression(return_statement_el)
+            self.compile_expression(return_statement_el, False)
 
         ET.SubElement(return_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
 
     # defer
-    def compile_expression(self, parent_el):
+    def compile_expression(self, parent_el, is_do):
         # term (op term)*
         operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
-        expression_el = ET.SubElement(parent_el, "expression")
 
-        self.compile_term(expression_el)
+        el = ET.SubElement(parent_el, "expression") if not is_do else parent_el
+
+        self.compile_term(el, is_do)
 
         while self.tokenizer.current_token in operators:
-            ET.SubElement(parent_el, "symbol").text = f" {self.tokenizer.current_token} "  # op
+            ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # op
             self.tokenizer.advance()
-            self.compile_term(expression_el)
 
-    def compile_term(self, parent_el):
+            self.compile_term(el, is_do)
+
+
+
+
+
+    def compile_term(self, parent_el, is_do):
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
+        el = ET.SubElement(parent_el, "term") if not is_do else parent_el
+
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             current_token = self.tokenizer.current_token
             self.tokenizer.advance() # now points to 1 ahead
 
             if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":  # subroutineCall
-                ET.SubElement(parent_el, "identifier").text = f" {current_token} "
+                ET.SubElement(el, "identifier").text = f" {current_token} "
 
                 if self.tokenizer.current_token == ".":
-                    ET.SubElement(parent_el, "symbol").text = f" {self.tokenizer.current_token} "  # '.'
+                    ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '.'
                     self.tokenizer.advance()
-                    ET.SubElement(parent_el, "identifier").text = f" {self.tokenizer.current_token} "
+                    ET.SubElement(el, "identifier").text = f" {self.tokenizer.current_token} "
                     self.tokenizer.advance()
 
-                ET.SubElement(parent_el, "symbol").text = f" {self.tokenizer.current_token} "  # '('
+                ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '('
                 self.tokenizer.advance()
 
-                self.compile_expression_list(parent_el)
+                self.compile_expression_list(el)
 
-                ET.SubElement(parent_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
+                ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
                 self.tokenizer.advance()
 
-                ET.SubElement(parent_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
-                self.tokenizer.advance()
                 return
             elif self.tokenizer.current_token == "[": # varName '[' expression ']'
-                ET.SubElement(parent_el, "identifier").text = f" {current_token} "
-                ET.SubElement(parent_el, "symbol").text = f" {self.tokenizer.current_token} "
+                ET.SubElement(el, "identifier").text = f" {current_token} "
+                ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
                 self.tokenizer.advance()
-                self.compile_expression(parent_el)
+
+                self.compile_expression(el, is_do)
+
+                ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ']'
+                self.tokenizer.advance()
+
                 return
             else:  # varName
-                term_el = ET.SubElement(parent_el, "term")
-                ET.SubElement(term_el, "identifier").text = f" {current_token} "
-                return
 
-        term_el = ET.SubElement(parent_el, "term")
+                ET.SubElement(el, "identifier").text = f" {current_token} "
+                return
 
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST: # integerConstant
-            ET.SubElement(term_el, "integerConstant").text = f" {self.tokenizer.current_token} "
+            ET.SubElement(el, "integerConstant").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
         elif token_type == TokenType.STRING_CONST: # stringConstant
-            ET.SubElement(term_el, "stringConstant").text = f" {self.tokenizer.current_token} "
+            ET.SubElement(el, "stringConstant").text = f" {self.tokenizer.current_token[1:-1]} "
             self.tokenizer.advance()
         elif token_type == TokenType.KEYWORD: # keywordConstant
-            ET.SubElement(term_el, "keyword").text = f" {self.tokenizer.current_token} "
+            ET.SubElement(el, "keyword").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
         elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~": # unaryOp term
-            unary_op_term_el = ET.SubElement(term_el, "symbol").text = f" {self.tokenizer.current_token} "
+            ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
-            self.compile_term(unary_op_term_el)
+            self.compile_term(el, is_do)
         elif self.tokenizer.current_token == "(": # '(' expression ')'
-            ET.SubElement(term_el, "symbol").text = f" {self.tokenizer.current_token} "
+            ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
-            self.compile_expression(term_el)
+            self.compile_expression(el, is_do)
+
+            ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
+            self.tokenizer.advance()
+
 
     def compile_expression_list(self, parent_el):
         # (expression (',' expression)*)?
-        # call(x, y) -> x, y)
         expression_list_el = ET.SubElement(parent_el, "expressionList")
 
         if self.tokenizer.current_token == ")":
             return
 
-        self.compile_expression(expression_list_el)
+        self.compile_expression(expression_list_el, False)
 
         while self.tokenizer.current_token == ",":
             # symbol - ','
             ET.SubElement(expression_list_el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
-            self.compile_expression(expression_list_el)
+            self.compile_expression(expression_list_el, False)
