@@ -29,3 +29,10 @@ class KeyWord(Enum):
     FALSE = 19
     NULL = 20
     THIS = 21
+
+class Kind(Enum):
+    STATIC = 1
+    FIELD = 2
+    ARG = 3
+    VAR = 4
+    NONE = 5

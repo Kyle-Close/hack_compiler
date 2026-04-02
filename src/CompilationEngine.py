@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 from src.Enums import KeyWord, TokenType
 from src.Helpers import force_empty_newlines
 from src.JackTokenizer import JackTokenizer
+from src.SymbolTable import SymbolTable
+from Enums import Kind
 
 
 class CompilationEngine:
@@ -12,6 +14,9 @@ class CompilationEngine:
         self.out_file = open(p, "w")
         self.tokenizer = JackTokenizer(path)
         self.tree = ET.ElementTree(ET.Element("tokens"))
+        self.class_symbol_table = SymbolTable()
+        self.subroutine_symbol_table = SymbolTable()
+        self.current_class_name = ""
 
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
@@ -30,6 +35,7 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - className
+        self.current_class_name = self.tokenizer.current_token
         ET.SubElement(class_el, "identifier").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -51,10 +57,12 @@ class CompilationEngine:
         else:
             return
 
+        kind = Kind.STATIC if keyword == KeyWord.STATIC else Kind.FIELD
         ET.SubElement(class_var_dec_el, "keyword").text = " static " if keyword == KeyWord.STATIC else " field "
         self.tokenizer.advance()
 
         # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
+        type_of = self.tokenizer.current_token
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         else:
@@ -62,6 +70,7 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - varName
+        self.class_symbol_table.define(self.tokenizer.current_token, type_of, kind)
         ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -70,6 +79,7 @@ class CompilationEngine:
             ET.SubElement(class_var_dec_el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
             # identifier - varName
+            self.class_symbol_table.define(self.tokenizer.current_token, type_of, kind)
             ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
@@ -81,6 +91,8 @@ class CompilationEngine:
 
     def compile_subroutine(self, parent_el):
         # ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
+        self.subroutine_symbol_table.start_subroutine()
+
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.KEYWORD:
             class_var_dec_el = ET.SubElement(parent_el, "subroutineDec")
@@ -88,10 +100,15 @@ class CompilationEngine:
             return
 
         # keyword - constructor | function | method
+        is_method = self.tokenizer.key_word() == KeyWord.METHOD
+
         ET.SubElement(class_var_dec_el, "keyword").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
         # identifier | keyword - void (keyword) | type -> int (keyword), char (keyword), boolean (keyword), or className (identifier)
+        if is_method:
+            self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
+
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         else:
@@ -124,6 +141,8 @@ class CompilationEngine:
             return
 
         # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
+        type_of = self.tokenizer.current_token
+
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             ET.SubElement(parent_el, "identifier").text = f" {self.tokenizer.current_token} "
         else:
@@ -132,6 +151,8 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - varName
+        self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.ARG)
+
         ET.SubElement(parent_el, "identifier").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -162,16 +183,18 @@ class CompilationEngine:
         self.tokenizer.advance()
 
     def compile_var_dec(self, parent_el):
+        # 'var' type varName (',' varName)* ';'
         if self.tokenizer.key_word() != KeyWord.VAR:
             return
 
         var_dec_el = ET.SubElement(parent_el, "varDec")
 
-        # 'var' type varName (',' varName)* ';'
         ET.SubElement(var_dec_el, "keyword").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
         # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
+        type_of = self.tokenizer.current_token
+
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             ET.SubElement(var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         else:
@@ -179,6 +202,8 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - varName
+        self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.VAR)
+
         ET.SubElement(var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -188,6 +213,7 @@ class CompilationEngine:
             ET.SubElement(var_dec_el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
             # identifier - varName
+            self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.VAR)
             ET.SubElement(var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
@@ -349,10 +375,6 @@ class CompilationEngine:
             self.tokenizer.advance()
 
             self.compile_term(el, is_do)
-
-
-
-
 
     def compile_term(self, parent_el, is_do):
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term

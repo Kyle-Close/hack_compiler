@@ -7,10 +7,11 @@
     <list default="true" id="ce509c26-af0a-482d-96ff-71674e7fb8af" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/CompilationEngine.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/CompilationEngine.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Enums.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/Enums.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test_files/ArrayTest/Main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/ArrayTest/Main.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_files/Square/Main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/Square/Main.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_files/Square/Square.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/Square/Square.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_files/Square/SquareGame.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/Square/SquareGame.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_files/ExpressionLessSquare/Main.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/ExpressionLessSquare/Main.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_files/ExpressionLessSquare/Square.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/ExpressionLessSquare/Square.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_files/ExpressionLessSquare/SquareGame.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/ExpressionLessSquare/SquareGame.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,6 +44,7 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python tests.pytest in tests.executor": "Run",
     "Python.Debug.executor": "Debug",
+    "Python.JackAnalyzer.executor": "Debug",
     "Python.main.executor": "Run",
     "Python.test.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -63,8 +65,8 @@
       <recent name="$PROJECT_DIR$" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.main">
-    <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+  <component name="RunManager" selected="Python.JackAnalyzer">
+    <configuration name="JackAnalyzer" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="JackCompiler" />
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -79,7 +81,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="RUN_TOOL" value="false" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/main.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/JackAnalyzer.py" />
       <option name="PARAMETERS" value="test_files/Square" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -131,7 +133,7 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.main" />
+      <item itemvalue="Python.JackAnalyzer" />
       <item itemvalue="Python.test" />
       <item itemvalue="Python tests.pytest in tests" />
     </list>
@@ -163,20 +165,15 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/src/CompilationEngine.py</url>
-          <line>205</line>
-          <option name="timeStamp" value="24" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/src/CompilationEngine.py</url>
-          <line>347</line>
-          <option name="timeStamp" value="25" />
+          <line>93</line>
+          <option name="timeStamp" value="28" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
     <watches-manager>
       <configuration name="PythonConfigurationType">
-        <watch expression="self.tokenizer.current_token" />
-        <watch expression="self.tokenizer.input" />
+        <watch expression="self.subroutine_symbol_table" />
+        <watch expression="self.class_symbol_table" />
       </configuration>
     </watches-manager>
   </component>
