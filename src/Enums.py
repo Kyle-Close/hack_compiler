@@ -36,3 +36,24 @@ class Kind(Enum):
     ARG = 3
     VAR = 4
     NONE = 5
+
+class Segment(Enum):
+    CONST = "constant"
+    ARG = "argument"
+    LOCAL = "local"
+    STATIC = "static"
+    THIS = "this"
+    THAT = "that"
+    POINTER = "pointer"
+    TEMP = "temp"
+
+class Command(Enum):
+    ADD = "add"
+    SUB = "sub"
+    NEG = "neg"
+    EQ = "eq"
+    GT = "gt"
+    LT = "lt"
+    AND = "and"
+    OR = "or"
+    NOT = "not"

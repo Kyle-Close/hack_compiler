@@ -6,10 +6,12 @@ from src.Helpers import force_empty_newlines
 from src.JackTokenizer import JackTokenizer
 from src.SymbolTable import SymbolTable
 from Enums import Kind
-
+from src.VMWriter import VMWriter
 
 class CompilationEngine:
     def __init__(self, path: Path):
+        self.vm_writer = VMWriter(path)
+
         p = Path(path).with_suffix(".xml")
         self.out_file = open(p, "w")
         self.tokenizer = JackTokenizer(path)
@@ -24,7 +26,6 @@ class CompilationEngine:
             ET.indent(self.tree, space="  ")
             force_empty_newlines(self.tree.getroot())
             self.tree.write(p, short_empty_elements=False)
-
 
     def compile_class(self):
         # 'class' className '{' classVarDec* subroutineDec* '}'
@@ -442,7 +443,6 @@ class CompilationEngine:
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
             self.tokenizer.advance()
 
-
     def compile_expression_list(self, parent_el):
         # (expression (',' expression)*)?
         expression_list_el = ET.SubElement(parent_el, "expressionList")
@@ -458,3 +458,6 @@ class CompilationEngine:
             self.tokenizer.advance()
 
             self.compile_expression(expression_list_el, False)
+
+    def close(self):
+        self.vm_writer.close()

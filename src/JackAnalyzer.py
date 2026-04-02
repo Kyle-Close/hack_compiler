@@ -13,14 +13,17 @@ class JackAnalyzer:
         if path.is_file():
             if path.suffix != ".jack":
                 sys.exit(f"The file provided is not a jack program: {path}")
-            CompilationEngine(path)
+
+            engine = CompilationEngine(path)
+            engine.close()
 
         elif path.is_dir():
             for child in path.iterdir():
                 if child.suffix != ".jack":
                     continue
 
-                CompilationEngine(child)
+                engine = CompilationEngine(child)
+                engine.close()
 
         else:
             sys.exit(f"Path to file or directory is invalid: {path}")
