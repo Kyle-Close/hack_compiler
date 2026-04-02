@@ -1,12 +1,13 @@
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from src.Enums import KeyWord, TokenType
+from src.Enums import KeyWord, TokenType, Command, Segment
 from src.Helpers import force_empty_newlines
 from src.JackTokenizer import JackTokenizer
 from src.SymbolTable import SymbolTable
 from Enums import Kind
-from src.VMWriter import VMWriter
+from src.VMWriter import VMWriter, get_arithmetic_command
+
 
 class CompilationEngine:
     def __init__(self, path: Path):
@@ -256,6 +257,23 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - varName
+        match = self.subroutine_symbol_table.table.get(self.tokenizer.current_token)
+        if match is None:
+            kind = self.class_symbol_table.kind_of(self.tokenizer.current_token)
+            index = self.class_symbol_table.index_of(self.tokenizer.current_token)
+        else:
+            kind = self.subroutine_symbol_table.kind_of(self.tokenizer.current_token)
+            index = self.subroutine_symbol_table.index_of(self.tokenizer.current_token)
+
+        if kind == Kind.STATIC:
+            segment = Segment.STATIC
+        elif kind == Kind.FIELD:
+            segment = Segment.THIS
+        elif kind == Kind.ARG:
+            segment = Segment.ARG
+        else:
+            segment = Segment.LOCAL
+
         ET.SubElement(let_statement_el, "identifier").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -272,6 +290,8 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         self.compile_expression(let_statement_el, False)
+
+        self.vm_writer.write_pop(segment, index)
 
         ET.SubElement(let_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
@@ -349,6 +369,8 @@ class CompilationEngine:
         ET.SubElement(do_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
 
+        self.vm_writer.write_pop(Segment.TEMP, 0)
+
     def compile_return(self, parent_el):
         # 'return' expression? ';'
         return_statement_el = ET.SubElement(parent_el, "returnStatement")
@@ -362,6 +384,8 @@ class CompilationEngine:
         ET.SubElement(return_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
 
+        self.vm_writer.write_return()
+
     # defer
     def compile_expression(self, parent_el, is_do):
         # term (op term)*
@@ -372,10 +396,12 @@ class CompilationEngine:
         self.compile_term(el, is_do)
 
         while self.tokenizer.current_token in operators:
+            command = get_arithmetic_command(self.tokenizer.current_token)
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # op
             self.tokenizer.advance()
 
             self.compile_term(el, is_do)
+            self.vm_writer.write_arithmetic(command)
 
     def compile_term(self, parent_el, is_do):
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
@@ -386,19 +412,22 @@ class CompilationEngine:
             self.tokenizer.advance() # now points to 1 ahead
 
             if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":  # subroutineCall
+                function_name = current_token
                 ET.SubElement(el, "identifier").text = f" {current_token} "
 
                 if self.tokenizer.current_token == ".":
                     ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '.'
                     self.tokenizer.advance()
+                    function_name += "." + self.tokenizer.current_token
                     ET.SubElement(el, "identifier").text = f" {self.tokenizer.current_token} "
                     self.tokenizer.advance()
 
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '('
                 self.tokenizer.advance()
 
-                self.compile_expression_list(el)
+                n_args = self.compile_expression_list(el)
 
+                self.vm_writer.write_call(function_name, n_args)
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
                 self.tokenizer.advance()
 
@@ -415,13 +444,31 @@ class CompilationEngine:
 
                 return
             else:  # varName
+                match = self.subroutine_symbol_table.table.get(current_token)
+                if match is None:
+                    kind = self.class_symbol_table.kind_of(current_token)
+                    index = self.class_symbol_table.index_of(current_token)
+                else:
+                    kind = self.subroutine_symbol_table.kind_of(current_token)
+                    index = self.subroutine_symbol_table.index_of(current_token)
 
+                if kind == Kind.STATIC:
+                    segment = Segment.STATIC
+                elif kind == Kind.FIELD:
+                    segment = Segment.THIS
+                elif kind == Kind.ARG:
+                    segment = Segment.ARG
+                else:
+                    segment = Segment.LOCAL
+
+                self.vm_writer.write_push(segment, index)
                 ET.SubElement(el, "identifier").text = f" {current_token} "
                 return
 
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST: # integerConstant
             ET.SubElement(el, "integerConstant").text = f" {self.tokenizer.current_token} "
+            self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token))
             self.tokenizer.advance()
         elif token_type == TokenType.STRING_CONST: # stringConstant
             ET.SubElement(el, "stringConstant").text = f" {self.tokenizer.current_token[1:-1]} "
@@ -430,10 +477,12 @@ class CompilationEngine:
             ET.SubElement(el, "keyword").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
         elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~": # unaryOp term
+            command = Command.NEG if self.tokenizer.current_token == "-" else Command.NOT
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
             self.compile_term(el, is_do)
+            self.vm_writer.write_arithmetic(command)
         elif self.tokenizer.current_token == "(": # '(' expression ')'
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
@@ -446,10 +495,12 @@ class CompilationEngine:
     def compile_expression_list(self, parent_el):
         # (expression (',' expression)*)?
         expression_list_el = ET.SubElement(parent_el, "expressionList")
+        n_args = 0
 
         if self.tokenizer.current_token == ")":
-            return
+            return n_args
 
+        n_args = n_args + 1
         self.compile_expression(expression_list_el, False)
 
         while self.tokenizer.current_token == ",":
@@ -457,7 +508,10 @@ class CompilationEngine:
             ET.SubElement(expression_list_el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
+            n_args = n_args + 1
             self.compile_expression(expression_list_el, False)
+
+        return n_args
 
     def close(self):
         self.vm_writer.close()

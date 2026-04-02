@@ -31,11 +31,11 @@ class KeyWord(Enum):
     THIS = 21
 
 class Kind(Enum):
-    STATIC = 1
-    FIELD = 2
-    ARG = 3
-    VAR = 4
-    NONE = 5
+    STATIC = "static"
+    FIELD = "this"
+    ARG = "argument"
+    VAR = "local"
+    NONE = "none"
 
 class Segment(Enum):
     CONST = "constant"
