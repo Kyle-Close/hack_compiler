@@ -105,7 +105,6 @@ class CompilationEngine:
             return
 
         # keyword - constructor | function | method
-        is_constructor = False
         if self.tokenizer.key_word() == KeyWord.METHOD:
             self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
 
@@ -459,12 +458,16 @@ class CompilationEngine:
 
             if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":  # subroutineCall
                 function_name = current_token
+                is_method = False
+                obj_name = current_token
                 ET.SubElement(el, "identifier").text = f" {current_token} "
 
                 if self.tokenizer.current_token == ".":
                     ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '.'
                     self.tokenizer.advance()
                     function_name += "." + self.tokenizer.current_token
+                    if self.tokenizer.current_token != "new":
+                        is_method = True
                     ET.SubElement(el, "identifier").text = f" {self.tokenizer.current_token} "
                     self.tokenizer.advance()
 
@@ -472,6 +475,40 @@ class CompilationEngine:
                 self.tokenizer.advance()
 
                 n_args = self.compile_expression_list(el)
+                if is_method:
+                    n_args = n_args + 1
+
+                    is_in_subroutine_table = True if self.subroutine_symbol_table.table.get(current_token) is not None else False
+                    is_in_class_table = True if self.class_symbol_table.table.get(current_token) is not None else False
+
+                    if is_in_subroutine_table:
+                        kind = self.subroutine_symbol_table.kind_of(current_token)
+                        index = self.subroutine_symbol_table.index_of(current_token)
+
+                        if kind == Kind.STATIC:
+                            segment = Segment.STATIC
+                        elif kind == Kind.FIELD:
+                            segment = Segment.THIS
+                        elif kind == Kind.ARG:
+                            segment = Segment.ARG
+                        else:
+                            segment = Segment.LOCAL
+
+                        self.vm_writer.write_push(segment, index, 1)
+                    elif is_in_class_table:
+                        kind = self.class_symbol_table.kind_of(current_token)
+                        index = self.class_symbol_table.index_of(current_token)
+
+                        if kind == Kind.STATIC:
+                            segment = Segment.STATIC
+                        elif kind == Kind.FIELD:
+                            segment = Segment.THIS
+                        elif kind == Kind.ARG:
+                            segment = Segment.ARG
+                        else:
+                            segment = Segment.LOCAL
+
+                        self.vm_writer.write_push(segment, index, 1)
 
                 self.vm_writer.write_call(function_name, n_args, 1)
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
