@@ -12,6 +12,7 @@ from src.VMWriter import VMWriter, get_arithmetic_command
 class CompilationEngine:
     def __init__(self, path: Path):
         self.vm_writer = VMWriter(path)
+        self.label_count = 0
 
         p = Path(path).with_suffix(".xml")
         self.out_file = open(p, "w")
@@ -308,6 +309,9 @@ class CompilationEngine:
 
         self.compile_expression(if_statement_el, False)
 
+        self.vm_writer.write_arithmetic(Command.NOT)
+        self.vm_writer.write_if(f"L{self.label_count}") # if-goto L0
+
         ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
         self.tokenizer.advance()
 
@@ -316,6 +320,9 @@ class CompilationEngine:
 
         statements_el = ET.SubElement(if_statement_el, "statements")
         self.compile_statements(statements_el)
+
+        self.vm_writer.write_go_to(f"L{self.label_count + 1}") # goto L1
+        self.vm_writer.write_label(f"L{self.label_count}") # label L0
 
         ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '}'
         self.tokenizer.advance()
@@ -332,6 +339,9 @@ class CompilationEngine:
 
             ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '}'
             self.tokenizer.advance()
+
+        self.vm_writer.write_label(f"L{self.label_count + 1}")  # label L1
+        self.label_count = self.label_count + 2
 
     def compile_while(self, parent_el):
         # 'while' '(' expression ')' '{' statements '}'

@@ -7,11 +7,6 @@
     <list default="true" id="ce509c26-af0a-482d-96ff-71674e7fb8af" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/CompilationEngine.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/CompilationEngine.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Enums.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/Enums.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/VMWriter.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/VMWriter.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_files/Square/Square.jack" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/Square/Square.jack" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_files/test.jack" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/test.jack" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_files/test.xml" beforeDir="false" afterPath="$PROJECT_DIR$/test_files/test.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
