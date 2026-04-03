@@ -22,6 +22,7 @@ class CompilationEngine:
         self.subroutine_symbol_table = SymbolTable()
         self.current_class_name = ""
         self.current_subroutine_name = ""
+        self.is_compiling_constructor = False
 
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
@@ -104,15 +105,19 @@ class CompilationEngine:
             return
 
         # keyword - constructor | function | method
-        is_method = self.tokenizer.key_word() == KeyWord.METHOD
+        is_constructor = False
+        if self.tokenizer.key_word() == KeyWord.METHOD:
+            self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
+
+        if self.tokenizer.key_word() == KeyWord.CONSTRUCTOR:
+            self.is_compiling_constructor = True
+        else:
+            self.is_compiling_constructor = False
 
         ET.SubElement(class_var_dec_el, "keyword").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
         # identifier | keyword - void (keyword) | type -> int (keyword), char (keyword), boolean (keyword), or className (identifier)
-        if is_method:
-            self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
-
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         else:
@@ -183,6 +188,11 @@ class CompilationEngine:
         self.vm_writer.write_function(f"{self.current_class_name}.{self.current_subroutine_name}",
                                       self.subroutine_symbol_table.var_count(Kind.VAR), 0)
 
+        if self.is_compiling_constructor:
+            self.vm_writer.write_push(Segment.CONST, self.class_symbol_table.var_count(Kind.FIELD), 1)
+            self.vm_writer.write_call("Memory.alloc", 1, 1)
+            self.vm_writer.write_pop(Segment.POINTER, 0, 1)
+
         # statements
         statements_el = ET.SubElement(subroutine_body_el, "statements")
         self.compile_statements(statements_el)
@@ -250,6 +260,8 @@ class CompilationEngine:
             self.compile_do(parent_el)
             self.compile_statements(parent_el)
         elif keyword == KeyWord.RETURN:
+            if self.is_compiling_constructor:
+                self.vm_writer.write_push(Segment.POINTER, 0, 1)
             self.compile_return(parent_el)
             self.compile_statements(parent_el)
         else:
