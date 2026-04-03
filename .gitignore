@@ -1,3 +1,5 @@
 submission
 lang.txt
 test_files
+.idea
+src/__pycache__

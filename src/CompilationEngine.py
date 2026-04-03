@@ -181,7 +181,7 @@ class CompilationEngine:
         self.compile_var_dec(subroutine_body_el)
 
         self.vm_writer.write_function(f"{self.current_class_name}.{self.current_subroutine_name}",
-                                      self.subroutine_symbol_table.var_count(Kind.VAR))
+                                      self.subroutine_symbol_table.var_count(Kind.VAR), 0)
 
         # statements
         statements_el = ET.SubElement(subroutine_body_el, "statements")
@@ -298,7 +298,7 @@ class CompilationEngine:
 
         self.compile_expression(let_statement_el, False)
 
-        self.vm_writer.write_pop(segment, index)
+        self.vm_writer.write_pop(segment, index, 1)
 
         ET.SubElement(let_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
@@ -315,8 +315,8 @@ class CompilationEngine:
 
         self.compile_expression(if_statement_el, False)
 
-        self.vm_writer.write_arithmetic(Command.NOT)
-        self.vm_writer.write_if(f"L{self.label_count}") # if-goto L0
+        self.vm_writer.write_arithmetic(Command.NOT, 1)
+        self.vm_writer.write_if(f"L{self.label_count}", 1) # if-goto L0
 
         ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
         self.tokenizer.advance()
@@ -327,8 +327,8 @@ class CompilationEngine:
         statements_el = ET.SubElement(if_statement_el, "statements")
         self.compile_statements(statements_el)
 
-        self.vm_writer.write_go_to(f"L{self.label_count + 1}") # goto L1
-        self.vm_writer.write_label(f"L{self.label_count}") # label L0
+        self.vm_writer.write_go_to(f"L{self.label_count + 1}", 1) # goto L1
+        self.vm_writer.write_label(f"L{self.label_count}", 1) # label L0
 
         ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '}'
         self.tokenizer.advance()
@@ -346,12 +346,12 @@ class CompilationEngine:
             ET.SubElement(if_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '}'
             self.tokenizer.advance()
 
-        self.vm_writer.write_label(f"L{self.label_count + 1}")  # label L1
+        self.vm_writer.write_label(f"L{self.label_count + 1}", 1)  # label L1
         self.label_count = self.label_count + 2
 
     def compile_while(self, parent_el):
         # 'while' '(' expression ')' '{' statements '}'
-        self.vm_writer.write_label(f"L{self.label_count}") # label L0
+        self.vm_writer.write_label(f"L{self.label_count}", 1) # label L0
 
         while_statement_el = ET.SubElement(parent_el, "whileStatement")
 
@@ -363,8 +363,8 @@ class CompilationEngine:
 
         self.compile_expression(while_statement_el, False)
 
-        self.vm_writer.write_arithmetic(Command.NOT)
-        self.vm_writer.write_if(f"L{self.label_count + 1}") # if-goto L1
+        self.vm_writer.write_arithmetic(Command.NOT, 1)
+        self.vm_writer.write_if(f"L{self.label_count + 1}", 1) # if-goto L1
 
         ET.SubElement(while_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
         self.tokenizer.advance()
@@ -375,8 +375,8 @@ class CompilationEngine:
         statements_el = ET.SubElement(while_statement_el, "statements")
         self.compile_statements(statements_el)
 
-        self.vm_writer.write_go_to(f"L{self.label_count + 1}") # goto L0
-        self.vm_writer.write_label(f"L{self.label_count}")
+        self.vm_writer.write_go_to(f"L{self.label_count + 1}", 1) # goto L0
+        self.vm_writer.write_label(f"L{self.label_count}", 1)
         self.label_count = self.label_count + 2
 
         ET.SubElement(while_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '}'
@@ -394,7 +394,7 @@ class CompilationEngine:
         ET.SubElement(do_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
 
-        self.vm_writer.write_pop(Segment.TEMP, 0)
+        self.vm_writer.write_pop(Segment.TEMP, 0, 1)
 
     def compile_return(self, parent_el):
         # 'return' expression? ';'
@@ -409,7 +409,7 @@ class CompilationEngine:
         ET.SubElement(return_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
 
-        self.vm_writer.write_return()
+        self.vm_writer.write_return(1)
 
     # defer
     def compile_expression(self, parent_el, is_do):
@@ -430,12 +430,12 @@ class CompilationEngine:
             self.compile_term(el, is_do)
 
             if command is not None:
-                self.vm_writer.write_arithmetic(command)
+                self.vm_writer.write_arithmetic(command, 1)
             else:
                 if is_mult:
-                    self.vm_writer.write_call("Math.multiply", 2)
+                    self.vm_writer.write_call("Math.multiply", 2, 1)
                 else:
-                    self.vm_writer.write_call("Math.divide", 2)
+                    self.vm_writer.write_call("Math.divide", 2, 1)
 
     def compile_term(self, parent_el, is_do):
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
@@ -461,7 +461,7 @@ class CompilationEngine:
 
                 n_args = self.compile_expression_list(el)
 
-                self.vm_writer.write_call(function_name, n_args)
+                self.vm_writer.write_call(function_name, n_args, 1)
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
                 self.tokenizer.advance()
 
@@ -495,14 +495,14 @@ class CompilationEngine:
                 else:
                     segment = Segment.LOCAL
 
-                self.vm_writer.write_push(segment, index)
+                self.vm_writer.write_push(segment, index, 1)
                 ET.SubElement(el, "identifier").text = f" {current_token} "
                 return
 
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST: # integerConstant
             ET.SubElement(el, "integerConstant").text = f" {self.tokenizer.current_token} "
-            self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token))
+            self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token), 1)
             self.tokenizer.advance()
         elif token_type == TokenType.STRING_CONST: # stringConstant
             ET.SubElement(el, "stringConstant").text = f" {self.tokenizer.current_token[1:-1]} "
@@ -516,7 +516,7 @@ class CompilationEngine:
             self.tokenizer.advance()
 
             self.compile_term(el, is_do)
-            self.vm_writer.write_arithmetic(command)
+            self.vm_writer.write_arithmetic(command, 1)
         elif self.tokenizer.current_token == "(": # '(' expression ')'
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
