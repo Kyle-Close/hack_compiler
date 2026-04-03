@@ -52,4 +52,4 @@ def get_arithmetic_command(val):
     elif val == "=":
         return Command.EQ
     else:
-        raise Exception("NOT IMPLEMENTED")
+        return None

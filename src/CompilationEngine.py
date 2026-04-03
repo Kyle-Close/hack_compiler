@@ -21,6 +21,7 @@ class CompilationEngine:
         self.class_symbol_table = SymbolTable()
         self.subroutine_symbol_table = SymbolTable()
         self.current_class_name = ""
+        self.current_subroutine_name = ""
 
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
@@ -119,6 +120,8 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - subroutineName
+        self.current_subroutine_name = self.tokenizer.current_token
+
         ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -176,6 +179,9 @@ class CompilationEngine:
 
         # varDec*
         self.compile_var_dec(subroutine_body_el)
+
+        self.vm_writer.write_function(f"{self.current_class_name}.{self.current_subroutine_name}",
+                                      self.subroutine_symbol_table.var_count(Kind.VAR))
 
         # statements
         statements_el = ET.SubElement(subroutine_body_el, "statements")
@@ -345,6 +351,8 @@ class CompilationEngine:
 
     def compile_while(self, parent_el):
         # 'while' '(' expression ')' '{' statements '}'
+        self.vm_writer.write_label(f"L{self.label_count}") # label L0
+
         while_statement_el = ET.SubElement(parent_el, "whileStatement")
 
         ET.SubElement(while_statement_el, "keyword").text = f" {self.tokenizer.current_token} "  # 'while'
@@ -355,6 +363,9 @@ class CompilationEngine:
 
         self.compile_expression(while_statement_el, False)
 
+        self.vm_writer.write_arithmetic(Command.NOT)
+        self.vm_writer.write_if(f"L{self.label_count + 1}") # if-goto L1
+
         ET.SubElement(while_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
         self.tokenizer.advance()
 
@@ -363,6 +374,10 @@ class CompilationEngine:
 
         statements_el = ET.SubElement(while_statement_el, "statements")
         self.compile_statements(statements_el)
+
+        self.vm_writer.write_go_to(f"L{self.label_count + 1}") # goto L0
+        self.vm_writer.write_label(f"L{self.label_count}")
+        self.label_count = self.label_count + 2
 
         ET.SubElement(while_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # '}'
         self.tokenizer.advance()
@@ -406,12 +421,21 @@ class CompilationEngine:
         self.compile_term(el, is_do)
 
         while self.tokenizer.current_token in operators:
+            is_mult = self.tokenizer.current_token == "*"
             command = get_arithmetic_command(self.tokenizer.current_token)
+
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # op
             self.tokenizer.advance()
 
             self.compile_term(el, is_do)
-            self.vm_writer.write_arithmetic(command)
+
+            if command is not None:
+                self.vm_writer.write_arithmetic(command)
+            else:
+                if is_mult:
+                    self.vm_writer.write_call("Math.multiply", 2)
+                else:
+                    self.vm_writer.write_call("Math.divide", 2)
 
     def compile_term(self, parent_el, is_do):
         # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
