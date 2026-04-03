@@ -23,6 +23,8 @@ class CompilationEngine:
         self.current_class_name = ""
         self.current_subroutine_name = ""
         self.is_compiling_constructor = False
+        self.is_compiling_method = False
+        self.is_compiling_void = False
 
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
@@ -106,7 +108,10 @@ class CompilationEngine:
 
         # keyword - constructor | function | method
         if self.tokenizer.key_word() == KeyWord.METHOD:
+            self.is_compiling_method = True
             self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
+        else:
+            self.is_compiling_method = False
 
         if self.tokenizer.key_word() == KeyWord.CONSTRUCTOR:
             self.is_compiling_constructor = True
@@ -120,6 +125,10 @@ class CompilationEngine:
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             ET.SubElement(class_var_dec_el, "identifier").text = f" {self.tokenizer.current_token} "
         else:
+            if self.tokenizer.key_word() == KeyWord.VOID:
+                self.is_compiling_void = True
+            else:
+                self.is_compiling_void = False
             ET.SubElement(class_var_dec_el, "keyword").text = f" {self.tokenizer.current_token} "
         self.tokenizer.advance()
 
@@ -191,6 +200,9 @@ class CompilationEngine:
             self.vm_writer.write_push(Segment.CONST, self.class_symbol_table.var_count(Kind.FIELD), 1)
             self.vm_writer.write_call("Memory.alloc", 1, 1)
             self.vm_writer.write_pop(Segment.POINTER, 0, 1)
+        elif self.is_compiling_method:
+            self.vm_writer.write_push(Segment.ARG, 0, 1)
+            self.vm_writer.write_pop(Segment.POINTER, 0, 1)
 
         # statements
         statements_el = ET.SubElement(subroutine_body_el, "statements")
@@ -259,8 +271,6 @@ class CompilationEngine:
             self.compile_do(parent_el)
             self.compile_statements(parent_el)
         elif keyword == KeyWord.RETURN:
-            if self.is_compiling_constructor:
-                self.vm_writer.write_push(Segment.POINTER, 0, 1)
             self.compile_return(parent_el)
             self.compile_statements(parent_el)
         else:
@@ -420,6 +430,8 @@ class CompilationEngine:
         ET.SubElement(return_statement_el, "symbol").text = f" {self.tokenizer.current_token} "  # ';'
         self.tokenizer.advance()
 
+        if self.is_compiling_void:
+            self.vm_writer.write_push(Segment.CONST, 0, 1)
         self.vm_writer.write_return(1)
 
     # defer
@@ -449,38 +461,48 @@ class CompilationEngine:
                     self.vm_writer.write_call("Math.divide", 2, 1)
 
     def compile_term(self, parent_el, is_do):
-        # integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
         el = ET.SubElement(parent_el, "term") if not is_do else parent_el
 
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             current_token = self.tokenizer.current_token
-            self.tokenizer.advance() # now points to 1 ahead
+            self.tokenizer.advance()
 
-            if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":  # subroutineCall
-                function_name = current_token
+            if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":
+                is_in_subroutine_table = self.subroutine_symbol_table.table.get(current_token) is not None
+                is_in_class_table = self.class_symbol_table.table.get(current_token) is not None
+
                 is_method = False
-                obj_name = current_token
                 ET.SubElement(el, "identifier").text = f" {current_token} "
 
                 if self.tokenizer.current_token == ".":
-                    ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '.'
+                    ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
                     self.tokenizer.advance()
-                    function_name += "." + self.tokenizer.current_token
-                    if self.tokenizer.current_token != "new":
-                        is_method = True
+
+                    if is_in_subroutine_table or is_in_class_table:
+                        # Variable in symbol table — it's an object, so method call
+                        if is_in_subroutine_table:
+                            class_name = self.subroutine_symbol_table.type_of(current_token)
+                        else:
+                            class_name = self.class_symbol_table.type_of(current_token)
+                        function_name = class_name + "." + self.tokenizer.current_token
+                        if self.tokenizer.current_token != "new":
+                            is_method = True
+                    else:
+                        # Not in symbol table — it's a class name, function/constructor call
+                        function_name = current_token + "." + self.tokenizer.current_token
+
                     ET.SubElement(el, "identifier").text = f" {self.tokenizer.current_token} "
                     self.tokenizer.advance()
+                else:
+                    # Bare subroutine call like draw() — method on this
+                    is_method = True
+                    function_name = self.current_class_name + "." + current_token
 
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # '('
                 self.tokenizer.advance()
 
-                n_args = self.compile_expression_list(el)
+                # Push object for method calls BEFORE compiling args
                 if is_method:
-                    n_args = n_args + 1
-
-                    is_in_subroutine_table = True if self.subroutine_symbol_table.table.get(current_token) is not None else False
-                    is_in_class_table = True if self.class_symbol_table.table.get(current_token) is not None else False
-
                     if is_in_subroutine_table:
                         kind = self.subroutine_symbol_table.kind_of(current_token)
                         index = self.subroutine_symbol_table.index_of(current_token)
@@ -509,13 +531,19 @@ class CompilationEngine:
                             segment = Segment.LOCAL
 
                         self.vm_writer.write_push(segment, index, 1)
+                    else:
+                        self.vm_writer.write_push(Segment.POINTER, 0, 1)
+
+                n_args = self.compile_expression_list(el)
+                if is_method:
+                    n_args = n_args + 1
 
                 self.vm_writer.write_call(function_name, n_args, 1)
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "  # ')'
                 self.tokenizer.advance()
 
                 return
-            elif self.tokenizer.current_token == "[": # varName '[' expression ']'
+            elif self.tokenizer.current_token == "[":
                 ET.SubElement(el, "identifier").text = f" {current_token} "
                 ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
                 self.tokenizer.advance()
@@ -526,7 +554,7 @@ class CompilationEngine:
                 self.tokenizer.advance()
 
                 return
-            else:  # varName
+            else:
                 match = self.subroutine_symbol_table.table.get(current_token)
                 if match is None:
                     kind = self.class_symbol_table.kind_of(current_token)
@@ -549,24 +577,31 @@ class CompilationEngine:
                 return
 
         token_type = self.tokenizer.token_type()
-        if token_type == TokenType.INT_CONST: # integerConstant
+        if token_type == TokenType.INT_CONST:
             ET.SubElement(el, "integerConstant").text = f" {self.tokenizer.current_token} "
             self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token), 1)
             self.tokenizer.advance()
-        elif token_type == TokenType.STRING_CONST: # stringConstant
+        elif token_type == TokenType.STRING_CONST:
             ET.SubElement(el, "stringConstant").text = f" {self.tokenizer.current_token[1:-1]} "
             self.tokenizer.advance()
-        elif token_type == TokenType.KEYWORD: # keywordConstant
+        elif token_type == TokenType.KEYWORD:
             ET.SubElement(el, "keyword").text = f" {self.tokenizer.current_token} "
+            if self.tokenizer.key_word() == KeyWord.THIS:
+                self.vm_writer.write_push(Segment.POINTER, 0, 1)
+            elif self.tokenizer.key_word() == KeyWord.TRUE:
+                self.vm_writer.write_push(Segment.CONST, 0, 1)
+                self.vm_writer.write_arithmetic(Command.NOT, 1)
+            elif self.tokenizer.key_word() == KeyWord.FALSE:
+                self.vm_writer.write_push(Segment.CONST, 0, 1)
             self.tokenizer.advance()
-        elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~": # unaryOp term
+        elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~":
             command = Command.NEG if self.tokenizer.current_token == "-" else Command.NOT
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
             self.compile_term(el, is_do)
             self.vm_writer.write_arithmetic(command, 1)
-        elif self.tokenizer.current_token == "(": # '(' expression ')'
+        elif self.tokenizer.current_token == "(":
             ET.SubElement(el, "symbol").text = f" {self.tokenizer.current_token} "
             self.tokenizer.advance()
 
