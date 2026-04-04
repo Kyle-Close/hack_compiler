@@ -1,4 +1,4 @@
-from Helpers import clean_text
+from src.Helpers import clean_text
 from src.Enums import TokenType, KeyWord
 
 class JackTokenizer:
@@ -6,6 +6,14 @@ class JackTokenizer:
     DIGITS = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
     KEYWORDS = {"class", "constructor", "function", "method", "field", "static", "var", "int", "char", "boolean",
                 "void", "true", "false", "null", "this", "let", "do", "if", "else", "while", "return"}
+    KEYWORD_MAP = {
+        "class": KeyWord.CLASS, "constructor": KeyWord.CONSTRUCTOR, "function": KeyWord.FUNCTION,
+        "method": KeyWord.METHOD, "field": KeyWord.FIELD, "static": KeyWord.STATIC,
+        "var": KeyWord.VAR, "int": KeyWord.INT, "char": KeyWord.CHAR, "boolean": KeyWord.BOOLEAN,
+        "void": KeyWord.VOID, "true": KeyWord.TRUE, "false": KeyWord.FALSE, "null": KeyWord.NULL,
+        "this": KeyWord.THIS, "let": KeyWord.LET, "do": KeyWord.DO, "if": KeyWord.IF,
+        "else": KeyWord.ELSE, "while": KeyWord.WHILE, "return": KeyWord.RETURN,
+    }
 
     def __init__(self, path):
         f = open(path)
@@ -72,49 +80,7 @@ class JackTokenizer:
             return TokenType.IDENTIFIER
 
     def key_word(self):
-        if self.current_token == "class":
-            return KeyWord.CLASS
-        if self.current_token == "constructor":
-            return KeyWord.CONSTRUCTOR
-        if self.current_token == "function":
-            return KeyWord.FUNCTION
-        if self.current_token == "method":
-            return KeyWord.METHOD
-        if self.current_token == "field":
-            return KeyWord.FIELD
-        if self.current_token == "static":
-            return KeyWord.STATIC
-        if self.current_token == "var":
-            return KeyWord.VAR
-        if self.current_token == "int":
-            return KeyWord.INT
-        if self.current_token == "char":
-            return KeyWord.CHAR
-        if self.current_token == "boolean":
-            return KeyWord.BOOLEAN
-        if self.current_token == "void":
-            return KeyWord.VOID
-        if self.current_token == "true":
-            return KeyWord.TRUE
-        if self.current_token == "false":
-            return KeyWord.FALSE
-        if self.current_token == "null":
-            return KeyWord.NULL
-        if self.current_token == "this":
-            return KeyWord.THIS
-        if self.current_token == "let":
-            return KeyWord.LET
-        if self.current_token == "do":
-            return KeyWord.DO
-        if self.current_token == "if":
-            return KeyWord.IF
-        if self.current_token == "else":
-            return KeyWord.ELSE
-        if self.current_token == "while":
-            return KeyWord.WHILE
-        if self.current_token == "return":
-            return KeyWord.RETURN
-        return None
+        return self.KEYWORD_MAP.get(self.current_token)
 
     def symbol(self):
         return self.current_token

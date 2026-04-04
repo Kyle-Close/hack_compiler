@@ -1,4 +1,4 @@
-from Enums import Segment, Command
+from src.Enums import Segment, Command
 from pathlib import Path
 
 class VMWriter:
@@ -39,20 +39,3 @@ class VMWriter:
     def close(self):
         self.out_file.close()
 
-def get_arithmetic_command(val):
-    if val == "+":
-        return Command.ADD
-    elif val == "-":
-        return Command.SUB
-    elif val == "&":
-        return Command.AND
-    elif val == "|":
-        return Command.OR
-    elif val == "<":
-        return Command.LT
-    elif val == ">":
-        return Command.GT
-    elif val == "=":
-        return Command.EQ
-    else:
-        return None

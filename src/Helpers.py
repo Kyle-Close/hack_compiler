@@ -1,4 +1,4 @@
-from Enums import Kind, Segment
+from src.Enums import Kind, Segment
 
 def clean_text(text):
     cleaned = ""

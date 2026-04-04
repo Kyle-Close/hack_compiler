@@ -1,11 +1,10 @@
 from pathlib import Path
 
-from src.Enums import KeyWord, TokenType, Command, Segment
+from src.Enums import KeyWord, TokenType, Command, Segment, Kind
 from src.Helpers import convert_kind_to_segment
 from src.JackTokenizer import JackTokenizer
 from src.SymbolTable import SymbolTable
-from Enums import Kind
-from src.VMWriter import VMWriter, get_arithmetic_command
+from src.VMWriter import VMWriter
 
 
 class CompilationEngine:
@@ -119,6 +118,7 @@ class CompilationEngine:
         # subroutineBody
         self.compile_subroutine_body()
 
+        # recurse - compile next subroutine (if exists)
         self.compile_subroutine()
 
     def compile_parameter_list(self):
@@ -227,17 +227,12 @@ class CompilationEngine:
         if self.tokenizer.current_token == "[":
             is_arr = True
             self.tokenizer.advance()
-
             self.vm_writer.write_push(segment, index)
-
             self.compile_expression()
-
             self.vm_writer.write_arithmetic(Command.ADD)
-
             self.tokenizer.advance()
 
         self.tokenizer.advance()
-
         self.compile_expression()
 
         if is_arr:
@@ -252,12 +247,9 @@ class CompilationEngine:
 
     def compile_if(self):
         # 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
-        start_label = f"L{self.label_count}"
-        end_label = f"L{self.label_count + 1}"
-        self.label_count += 2
+        start_label, end_label = self._new_label_pair()
 
         self.tokenizer.advance()
-
         self.tokenizer.advance()
 
         self.compile_expression()
@@ -288,9 +280,7 @@ class CompilationEngine:
 
     def compile_while(self):
         # 'while' '(' expression ')' '{' statements '}'
-        start_label = f"L{self.label_count}"
-        end_label = f"L{self.label_count + 1}"
-        self.label_count += 2
+        start_label, end_label = self._new_label_pair()
 
         self.vm_writer.write_label(start_label) # label L0
 
@@ -345,7 +335,7 @@ class CompilationEngine:
 
         while self.tokenizer.current_token in operators:
             is_mult = self.tokenizer.current_token == "*"
-            command = get_arithmetic_command(self.tokenizer.current_token)
+            command = Command.from_symbol(self.tokenizer.current_token)
 
             self.tokenizer.advance()
 
@@ -422,9 +412,14 @@ class CompilationEngine:
     def close(self):
         self.vm_writer.close()
 
+    def _new_label_pair(self) -> tuple[str, str]:
+        start = f"L{self.label_count}"
+        end = f"L{self.label_count + 1}"
+        self.label_count += 2
+        return start, end
+
     def _lookup_symbol(self, name):
-        match = self.subroutine_symbol_table.table.get(name)
-        if match is not None:
+        if self.subroutine_symbol_table.contains(name):
             kind = self.subroutine_symbol_table.kind_of(name)
             index = self.subroutine_symbol_table.index_of(name)
         else:
@@ -435,8 +430,8 @@ class CompilationEngine:
         return segment, index
 
     def _compile_term_subroutine_call(self, current_token):
-        is_in_subroutine_table = self.subroutine_symbol_table.table.get(current_token) is not None
-        is_in_class_table = self.class_symbol_table.table.get(current_token) is not None
+        is_in_subroutine_table = self.subroutine_symbol_table.contains(current_token)
+        is_in_class_table = self.class_symbol_table.contains(current_token)
         is_method = False
 
         if self.tokenizer.current_token == ".":

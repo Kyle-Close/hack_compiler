@@ -1,7 +1,7 @@
 from typing import Dict
 from dataclasses import dataclass
 
-from Enums import Kind
+from src.Enums import Kind
 
 @dataclass
 class SymbolTableRow:
@@ -22,6 +22,9 @@ class SymbolTable:
 
     def var_count(self, kind):
         return sum(1 for row in self.table.values() if row.kind == kind)
+
+    def contains(self, name: str) -> bool:
+        return name in self.table
 
     def kind_of(self, name):
         return self.table[name].kind

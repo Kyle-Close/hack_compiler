@@ -57,3 +57,13 @@ class Command(Enum):
     AND = "and"
     OR = "or"
     NOT = "not"
+
+    _SYMBOL_MAP = {
+        "+": "ADD", "-": "SUB", "&": "AND", "|": "OR",
+        "<": "LT",  ">": "GT",  "=": "EQ",
+    }
+
+    @classmethod
+    def from_symbol(cls, symbol: str):
+        name = cls._SYMBOL_MAP.value.get(symbol)
+        return cls[name] if name else None
