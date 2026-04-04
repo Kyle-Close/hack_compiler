@@ -6,35 +6,35 @@ class VMWriter:
         out_file_path = Path(path).with_suffix(".vm")
         self.out_file = open(out_file_path, "w")
 
-    def write_push(self, segment: Segment, index: int, tab_count: int):
-        self._write(f"push {segment.value} {index}", tab_count)
+    def write_push(self, segment: Segment, index: int):
+        self._write_instruction(f"push {segment.value} {index}")
 
-    def write_pop(self, segment: Segment, index: int, tab_count: int):
-        self._write(f"pop {segment.value} {index}", tab_count)
+    def write_pop(self, segment: Segment, index: int):
+        self._write_instruction(f"pop {segment.value} {index}")
 
-    def write_arithmetic(self, command: Command, tab_count: int):
-        self._write(f"{command.value}", tab_count)
+    def write_arithmetic(self, command: Command):
+        self._write_instruction(f"{command.value}")
 
-    def write_label(self, label: str, tab_count: int):
-        self._write(f"label {label}", tab_count)
+    def write_label(self, label: str):
+        self._write_instruction(f"label {label}")
 
-    def write_go_to(self, label: str, tab_count: int):
-        self._write(f"goto {label}", tab_count)
+    def write_go_to(self, label: str):
+        self._write_instruction(f"goto {label}")
 
-    def write_if(self, label: str, tab_count: int):
-        self._write(f"if-goto {label}", tab_count)
+    def write_if(self, label: str):
+        self._write_instruction(f"if-goto {label}")
 
-    def write_call(self, name: str, n_args: int, tab_count: int):
-        self._write(f"call {name} {n_args}", tab_count)
+    def write_call(self, name: str, n_args: int):
+        self._write_instruction(f"call {name} {n_args}")
 
-    def write_function(self, name: str, n_locals: int, tab_count: int):
-        self._write(f"function {name} {n_locals}", tab_count)
+    def write_function(self, name: str, n_locals: int):
+        self.out_file.write(f"function {name} {n_locals}\n")
 
-    def write_return(self, tab_count: int):
-        self._write("return", tab_count)
+    def write_return(self):
+        self._write_instruction("return")
 
-    def _write(self, content, tab_count):
-        self.out_file.write(f"{"\t" * tab_count}{content}\n")
+    def _write_instruction(self, content):
+        self.out_file.write(f"\t{content}\n")
 
     def close(self):
         self.out_file.close()

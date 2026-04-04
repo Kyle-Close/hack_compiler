@@ -153,15 +153,15 @@ class CompilationEngine:
         self.compile_var_dec()
 
         self.vm_writer.write_function(f"{self.current_class_name}.{self.current_subroutine_name}",
-                                      self.subroutine_symbol_table.var_count(Kind.VAR), 0)
+                                      self.subroutine_symbol_table.var_count(Kind.VAR))
 
         if self.is_compiling_constructor:
-            self.vm_writer.write_push(Segment.CONST, self.class_symbol_table.var_count(Kind.FIELD), 1)
-            self.vm_writer.write_call("Memory.alloc", 1, 1)
-            self.vm_writer.write_pop(Segment.POINTER, 0, 1)
+            self.vm_writer.write_push(Segment.CONST, self.class_symbol_table.var_count(Kind.FIELD))
+            self.vm_writer.write_call("Memory.alloc", 1)
+            self.vm_writer.write_pop(Segment.POINTER, 0)
         elif self.is_compiling_method:
-            self.vm_writer.write_push(Segment.ARG, 0, 1)
-            self.vm_writer.write_pop(Segment.POINTER, 0, 1)
+            self.vm_writer.write_push(Segment.ARG, 0)
+            self.vm_writer.write_pop(Segment.POINTER, 0)
 
         # statements
         self.compile_statements()
@@ -228,25 +228,25 @@ class CompilationEngine:
             is_arr = True
             self.tokenizer.advance()
 
-            self.vm_writer.write_push(segment, index, 1)
+            self.vm_writer.write_push(segment, index)
 
-            self.compile_expression(False)
+            self.compile_expression()
 
-            self.vm_writer.write_arithmetic(Command.ADD, 1)
+            self.vm_writer.write_arithmetic(Command.ADD)
 
             self.tokenizer.advance()
 
         self.tokenizer.advance()
 
-        self.compile_expression(False)
+        self.compile_expression()
 
         if is_arr:
-            self.vm_writer.write_pop(Segment.TEMP, 0, 1)
-            self.vm_writer.write_pop(Segment.POINTER, 1, 1)
-            self.vm_writer.write_push(Segment.TEMP, 0, 1)
-            self.vm_writer.write_pop(Segment.THAT, 0, 1)
+            self.vm_writer.write_pop(Segment.TEMP, 0)
+            self.vm_writer.write_pop(Segment.POINTER, 1)
+            self.vm_writer.write_push(Segment.TEMP, 0)
+            self.vm_writer.write_pop(Segment.THAT, 0)
         else:
-            self.vm_writer.write_pop(segment, index, 1)
+            self.vm_writer.write_pop(segment, index)
 
         self.tokenizer.advance()
 
@@ -260,10 +260,10 @@ class CompilationEngine:
 
         self.tokenizer.advance()
 
-        self.compile_expression(False)
+        self.compile_expression()
 
-        self.vm_writer.write_arithmetic(Command.NOT, 1)
-        self.vm_writer.write_if(start_label, 1) # if-goto L0
+        self.vm_writer.write_arithmetic(Command.NOT)
+        self.vm_writer.write_if(start_label) # if-goto L0
 
         self.tokenizer.advance()
 
@@ -271,8 +271,8 @@ class CompilationEngine:
 
         self.compile_statements()
 
-        self.vm_writer.write_go_to(end_label, 1) # goto L1
-        self.vm_writer.write_label(start_label, 1) # label L0
+        self.vm_writer.write_go_to(end_label) # goto L1
+        self.vm_writer.write_label(start_label) # label L0
 
         self.tokenizer.advance()
 
@@ -284,7 +284,7 @@ class CompilationEngine:
 
             self.tokenizer.advance()
 
-        self.vm_writer.write_label(end_label, 1)  # label L1
+        self.vm_writer.write_label(end_label)  # label L1
 
     def compile_while(self):
         # 'while' '(' expression ')' '{' statements '}'
@@ -292,24 +292,24 @@ class CompilationEngine:
         end_label = f"L{self.label_count + 1}"
         self.label_count += 2
 
-        self.vm_writer.write_label(start_label, 1) # label L0
+        self.vm_writer.write_label(start_label) # label L0
 
         self.tokenizer.advance()
 
         self.tokenizer.advance()
 
-        self.compile_expression(False)
+        self.compile_expression()
 
-        self.vm_writer.write_arithmetic(Command.NOT, 1)
-        self.vm_writer.write_if(end_label, 1) # if-goto L1
+        self.vm_writer.write_arithmetic(Command.NOT)
+        self.vm_writer.write_if(end_label) # if-goto L1
 
         self.tokenizer.advance()
         self.tokenizer.advance()
 
         self.compile_statements()
 
-        self.vm_writer.write_go_to(start_label, 1) # goto L0
-        self.vm_writer.write_label(end_label, 1)
+        self.vm_writer.write_go_to(start_label) # goto L0
+        self.vm_writer.write_label(end_label)
 
         self.tokenizer.advance()
 
@@ -317,31 +317,31 @@ class CompilationEngine:
         # 'do' routineCall ';'
         self.tokenizer.advance()
 
-        self.compile_expression(True)
+        self.compile_expression()
 
         self.tokenizer.advance()
 
-        self.vm_writer.write_pop(Segment.TEMP, 0, 1)
+        self.vm_writer.write_pop(Segment.TEMP, 0)
 
     def compile_return(self):
         # 'return' expression? ';'
         self.tokenizer.advance()
 
         if self.tokenizer.current_token != ";":
-            self.compile_expression(False)
+            self.compile_expression()
 
         self.tokenizer.advance()
 
         if self.is_compiling_void:
-            self.vm_writer.write_push(Segment.CONST, 0, 1)
-        self.vm_writer.write_return(1)
+            self.vm_writer.write_push(Segment.CONST, 0)
+        self.vm_writer.write_return()
 
     # defer
-    def compile_expression(self, is_do):
+    def compile_expression(self):
         # term (op term)*
         operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
 
-        self.compile_term(is_do)
+        self.compile_term()
 
         while self.tokenizer.current_token in operators:
             is_mult = self.tokenizer.current_token == "*"
@@ -349,17 +349,17 @@ class CompilationEngine:
 
             self.tokenizer.advance()
 
-            self.compile_term(is_do)
+            self.compile_term()
 
             if command is not None:
-                self.vm_writer.write_arithmetic(command, 1)
+                self.vm_writer.write_arithmetic(command)
             else:
                 if is_mult:
-                    self.vm_writer.write_call("Math.multiply", 2, 1)
+                    self.vm_writer.write_call("Math.multiply", 2)
                 else:
-                    self.vm_writer.write_call("Math.divide", 2, 1)
+                    self.vm_writer.write_call("Math.divide", 2)
 
-    def compile_term(self, is_do):
+    def compile_term(self):
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             current_token = self.tokenizer.current_token
             self.tokenizer.advance()
@@ -367,25 +367,25 @@ class CompilationEngine:
             if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":
                 self._compile_term_subroutine_call(current_token)
             elif self.tokenizer.current_token == "[":
-                self._compile_term_array_access(current_token, is_do)
+                self._compile_term_array_access(current_token)
             else:
                 segment, index = self._lookup_symbol(current_token)
-                self.vm_writer.write_push(segment, index, 1)
+                self.vm_writer.write_push(segment, index)
             return
 
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST:
-            self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token), 1)
+            self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token))
             self.tokenizer.advance()
         elif token_type == TokenType.STRING_CONST:
             # push number of char needed to stack
             str_len = len(self.tokenizer.current_token[1:-1])
-            self.vm_writer.write_push(Segment.CONST, str_len, 1)
-            self.vm_writer.write_call("String.new", 1, 1)
+            self.vm_writer.write_push(Segment.CONST, str_len)
+            self.vm_writer.write_call("String.new", 1)
 
             for char in self.tokenizer.current_token[1:-1]:
-                self.vm_writer.write_push(Segment.CONST, ord(char), 1)
-                self.vm_writer.write_call("String.appendChar", 2, 1)
+                self.vm_writer.write_push(Segment.CONST, ord(char))
+                self.vm_writer.write_call("String.appendChar", 2)
 
             self.tokenizer.advance()
         elif token_type == TokenType.KEYWORD:
@@ -393,11 +393,11 @@ class CompilationEngine:
         elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~":
             command = Command.NEG if self.tokenizer.current_token == "-" else Command.NOT
             self.tokenizer.advance()
-            self.compile_term(is_do)
-            self.vm_writer.write_arithmetic(command, 1)
+            self.compile_term()
+            self.vm_writer.write_arithmetic(command)
         elif self.tokenizer.current_token == "(":
             self.tokenizer.advance()
-            self.compile_expression(is_do)
+            self.compile_expression()
             self.tokenizer.advance()
 
     def compile_expression_list(self):
@@ -408,14 +408,14 @@ class CompilationEngine:
             return n_args
 
         n_args = n_args + 1
-        self.compile_expression(False)
+        self.compile_expression()
 
         while self.tokenizer.current_token == ",":
             # symbol - ','
             self.tokenizer.advance()
 
             n_args = n_args + 1
-            self.compile_expression(False)
+            self.compile_expression()
 
         return n_args
 
@@ -467,37 +467,37 @@ class CompilationEngine:
         if is_method:
             if is_in_subroutine_table or is_in_class_table:
                 segment, index = self._lookup_symbol(current_token)
-                self.vm_writer.write_push(segment, index, 1)
+                self.vm_writer.write_push(segment, index)
             else:
-                self.vm_writer.write_push(Segment.POINTER, 0, 1)
+                self.vm_writer.write_push(Segment.POINTER, 0)
 
         n_args = self.compile_expression_list()
         if is_method:
             n_args = n_args + 1
 
-        self.vm_writer.write_call(function_name, n_args, 1)
+        self.vm_writer.write_call(function_name, n_args)
         self.tokenizer.advance()
 
-    def _compile_term_array_access(self, current_token, is_do):
+    def _compile_term_array_access(self, current_token):
         segment, index = self._lookup_symbol(current_token)
         self.tokenizer.advance()
 
-        self.vm_writer.write_push(segment, index, 1)
+        self.vm_writer.write_push(segment, index)
 
-        self.compile_expression(is_do)
+        self.compile_expression()
 
-        self.vm_writer.write_arithmetic(Command.ADD, 1)
-        self.vm_writer.write_pop(Segment.POINTER, 1, 1)
-        self.vm_writer.write_push(Segment.THAT, 0, 1)
+        self.vm_writer.write_arithmetic(Command.ADD)
+        self.vm_writer.write_pop(Segment.POINTER, 1)
+        self.vm_writer.write_push(Segment.THAT, 0)
 
         self.tokenizer.advance()
 
     def _compile_term_keyword_constant(self):
         if self.tokenizer.key_word() == KeyWord.THIS:
-            self.vm_writer.write_push(Segment.POINTER, 0, 1)
+            self.vm_writer.write_push(Segment.POINTER, 0)
         elif self.tokenizer.key_word() == KeyWord.TRUE:
-            self.vm_writer.write_push(Segment.CONST, 0, 1)
-            self.vm_writer.write_arithmetic(Command.NOT, 1)
+            self.vm_writer.write_push(Segment.CONST, 0)
+            self.vm_writer.write_arithmetic(Command.NOT)
         elif self.tokenizer.key_word() == KeyWord.FALSE or self.tokenizer.key_word() == KeyWord.NULL:
-            self.vm_writer.write_push(Segment.CONST, 0, 1)
+            self.vm_writer.write_push(Segment.CONST, 0)
         self.tokenizer.advance()
