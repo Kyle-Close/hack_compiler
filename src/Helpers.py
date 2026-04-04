@@ -1,4 +1,4 @@
-import unittest
+from Enums import Kind, Segment
 
 def clean_text(text):
     cleaned = ""
@@ -48,8 +48,14 @@ def clean_text(text):
 
     return cleaned
 
-def force_empty_newlines(element, space="  ", level=0):
-    for child in element:
-        if len(child) == 0 and not child.text:
-            child.text = "\n" + space * (level + 1)
-        force_empty_newlines(child, space, level + 1)
+def convert_kind_to_segment(kind: Kind):
+    if kind == Kind.STATIC:
+        return Segment.STATIC
+    elif kind == Kind.FIELD:
+        return Segment.THIS
+    elif kind == Kind.ARG:
+        return Segment.ARG
+    elif kind == Kind.VAR:
+        return Segment.LOCAL
+    else:
+        raise Exception(f"Cannot convert kind: {kind} to segment")

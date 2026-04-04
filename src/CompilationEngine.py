@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from src.Enums import KeyWord, TokenType, Command, Segment
+from src.Helpers import convert_kind_to_segment
 from src.JackTokenizer import JackTokenizer
 from src.SymbolTable import SymbolTable
 from Enums import Kind
@@ -224,23 +225,7 @@ class CompilationEngine:
         self.tokenizer.advance()
 
         # identifier - varName
-        match = self.subroutine_symbol_table.table.get(self.tokenizer.current_token)
-        if match is None:
-            kind = self.class_symbol_table.kind_of(self.tokenizer.current_token)
-            index = self.class_symbol_table.index_of(self.tokenizer.current_token)
-        else:
-            kind = self.subroutine_symbol_table.kind_of(self.tokenizer.current_token)
-            index = self.subroutine_symbol_table.index_of(self.tokenizer.current_token)
-
-        if kind == Kind.STATIC:
-            segment = Segment.STATIC
-        elif kind == Kind.FIELD:
-            segment = Segment.THIS
-        elif kind == Kind.ARG:
-            segment = Segment.ARG
-        else:
-            segment = Segment.LOCAL
-
+        segment, index = self._lookup_symbol(self.tokenizer.current_token)
         self.tokenizer.advance()
 
         is_arr = False
@@ -456,24 +441,8 @@ class CompilationEngine:
 
                 return
             elif self.tokenizer.current_token == "[":
+                segment, index = self._lookup_symbol(current_token)
                 self.tokenizer.advance()
-
-                match = self.subroutine_symbol_table.table.get(current_token)
-                if match is None:
-                    kind = self.class_symbol_table.kind_of(current_token)
-                    index = self.class_symbol_table.index_of(current_token)
-                else:
-                    kind = self.subroutine_symbol_table.kind_of(current_token)
-                    index = self.subroutine_symbol_table.index_of(current_token)
-
-                if kind == Kind.STATIC:
-                    segment = Segment.STATIC
-                elif kind == Kind.FIELD:
-                    segment = Segment.THIS
-                elif kind == Kind.ARG:
-                    segment = Segment.ARG
-                else:
-                    segment = Segment.LOCAL
 
                 self.vm_writer.write_push(segment, index, 1)
 
@@ -487,23 +456,7 @@ class CompilationEngine:
 
                 return
             else:
-                match = self.subroutine_symbol_table.table.get(current_token)
-                if match is None:
-                    kind = self.class_symbol_table.kind_of(current_token)
-                    index = self.class_symbol_table.index_of(current_token)
-                else:
-                    kind = self.subroutine_symbol_table.kind_of(current_token)
-                    index = self.subroutine_symbol_table.index_of(current_token)
-
-                if kind == Kind.STATIC:
-                    segment = Segment.STATIC
-                elif kind == Kind.FIELD:
-                    segment = Segment.THIS
-                elif kind == Kind.ARG:
-                    segment = Segment.ARG
-                else:
-                    segment = Segment.LOCAL
-
+                segment, index = self._lookup_symbol(current_token)
                 self.vm_writer.write_push(segment, index, 1)
                 return
 
@@ -562,3 +515,15 @@ class CompilationEngine:
 
     def close(self):
         self.vm_writer.close()
+
+    def _lookup_symbol(self, name):
+        match = self.subroutine_symbol_table.table.get(name)
+        if match is not None:
+            kind = self.subroutine_symbol_table.kind_of(name)
+            index = self.subroutine_symbol_table.index_of(name)
+        else:
+            kind = self.class_symbol_table.kind_of(name)
+            index = self.class_symbol_table.index_of(name)
+
+        segment = convert_kind_to_segment(kind)
+        return segment, index
