@@ -44,31 +44,31 @@ class CompilationEngine:
 
     def compile_class_var_dec(self):
         # ('static' | 'field') type varName (',' varName)* ';'
-        keyword = self.tokenizer.key_word()
-        if keyword != KeyWord.STATIC and keyword != KeyWord.FIELD:
-            return
+        while True:
+            keyword = self.tokenizer.key_word()
+            if keyword != KeyWord.STATIC and keyword != KeyWord.FIELD:
+                break
 
-        kind = Kind.STATIC if keyword == KeyWord.STATIC else Kind.FIELD
-        self.tokenizer.advance()
-
-        # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
-        type_of = self.tokenizer.current_token
-        self.tokenizer.advance()
-
-        # identifier - varName
-        self.class_symbol_table.define(self.tokenizer.current_token, type_of, kind)
-        self.tokenizer.advance()
-
-        while self.tokenizer.current_token != ";":
-            # symbol - ','
+            kind = Kind.STATIC if keyword == KeyWord.STATIC else Kind.FIELD
             self.tokenizer.advance()
+
+            # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
+            type_of = self.tokenizer.current_token
+            self.tokenizer.advance()
+
             # identifier - varName
             self.class_symbol_table.define(self.tokenizer.current_token, type_of, kind)
             self.tokenizer.advance()
 
-        # symbol - ';'
-        self.tokenizer.advance()
-        self.compile_class_var_dec()
+            while self.tokenizer.current_token != ";":
+                # symbol - ','
+                self.tokenizer.advance()
+                # identifier - varName
+                self.class_symbol_table.define(self.tokenizer.current_token, type_of, kind)
+                self.tokenizer.advance()
+
+            # symbol - ';'
+            self.tokenizer.advance()
 
     def compile_subroutine(self):
         # ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
@@ -131,14 +131,17 @@ class CompilationEngine:
 
         # identifier - varName
         self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.ARG)
-
         self.tokenizer.advance()
 
-        # symbol - ','
-        if self.tokenizer.current_token == ",":
+        while self.tokenizer.current_token == ",":
+            # symbol - ','
             self.tokenizer.advance()
-
-        self.compile_parameter_list()
+            # type
+            type_of = self.tokenizer.current_token
+            self.tokenizer.advance()
+            # identifier - varName
+            self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.ARG)
+            self.tokenizer.advance()
 
     def compile_subroutine_body(self):
         # '{' varDec* statements '}'
@@ -168,55 +171,47 @@ class CompilationEngine:
 
     def compile_var_dec(self):
         # 'var' type varName (',' varName)* ';'
-        if self.tokenizer.key_word() != KeyWord.VAR:
-            return
-
-        # var
-        self.tokenizer.advance()
-
-        # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
-        type_of = self.tokenizer.current_token
-        self.tokenizer.advance()
-
-        # identifier - varName
-        self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.VAR)
-        self.tokenizer.advance()
-
-        # (',' varName)*
-        while self.tokenizer.current_token != ";":
-            # symbol - ','
+        while self.tokenizer.key_word() == KeyWord.VAR:
+            # var
             self.tokenizer.advance()
+
+            # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
+            type_of = self.tokenizer.current_token
+            self.tokenizer.advance()
+
             # identifier - varName
             self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.VAR)
             self.tokenizer.advance()
 
-        # symbol ';'
-        self.tokenizer.advance()
+            # (',' varName)*
+            while self.tokenizer.current_token != ";":
+                # symbol - ','
+                self.tokenizer.advance()
+                # identifier - varName
+                self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.VAR)
+                self.tokenizer.advance()
 
-        self.compile_var_dec()
+            # symbol ';'
+            self.tokenizer.advance()
 
     def compile_statements(self):
         # statement*
         # letStatement | ifStatement | whileStatement | doStatement | returnStatement
 
-        keyword = self.tokenizer.key_word()
-        if keyword == KeyWord.LET:
-            self.compile_let()
-            self.compile_statements()
-        elif keyword == KeyWord.IF:
-            self.compile_if()
-            self.compile_statements()
-        elif keyword == KeyWord.WHILE:
-            self.compile_while()
-            self.compile_statements()
-        elif keyword == KeyWord.DO:
-            self.compile_do()
-            self.compile_statements()
-        elif keyword == KeyWord.RETURN:
-            self.compile_return()
-            self.compile_statements()
-        else:
-            return
+        while True:
+            keyword = self.tokenizer.key_word()
+            if keyword == KeyWord.LET:
+                self.compile_let()
+            elif keyword == KeyWord.IF:
+                self.compile_if()
+            elif keyword == KeyWord.WHILE:
+                self.compile_while()
+            elif keyword == KeyWord.DO:
+                self.compile_do()
+            elif keyword == KeyWord.RETURN:
+                self.compile_return()
+            else:
+                break
 
     def compile_let(self):
         # 'let' varName ('[' expression ']')? '=' expression ';'
