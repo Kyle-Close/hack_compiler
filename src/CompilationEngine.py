@@ -365,95 +365,13 @@ class CompilationEngine:
             self.tokenizer.advance()
 
             if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":
-                is_in_subroutine_table = self.subroutine_symbol_table.table.get(current_token) is not None
-                is_in_class_table = self.class_symbol_table.table.get(current_token) is not None
-
-                is_method = False
-
-                if self.tokenizer.current_token == ".":
-                    self.tokenizer.advance()
-
-                    if is_in_subroutine_table or is_in_class_table:
-                        # Variable in symbol table — it's an object, so method call
-                        if is_in_subroutine_table:
-                            class_name = self.subroutine_symbol_table.type_of(current_token)
-                        else:
-                            class_name = self.class_symbol_table.type_of(current_token)
-                        function_name = class_name + "." + self.tokenizer.current_token
-                        if self.tokenizer.current_token != "new":
-                            is_method = True
-                    else:
-                        # Not in symbol table — it's a class name, followed by function or constructor call
-                        function_name = current_token + "." + self.tokenizer.current_token
-
-                    self.tokenizer.advance()
-                else:
-                    # Bare subroutine call like draw() — method on this
-                    is_method = True
-                    function_name = self.current_class_name + "." + current_token
-
-                self.tokenizer.advance()
-
-                # Push object for method calls BEFORE compiling args
-                if is_method:
-                    if is_in_subroutine_table:
-                        kind = self.subroutine_symbol_table.kind_of(current_token)
-                        index = self.subroutine_symbol_table.index_of(current_token)
-
-                        if kind == Kind.STATIC:
-                            segment = Segment.STATIC
-                        elif kind == Kind.FIELD:
-                            segment = Segment.THIS
-                        elif kind == Kind.ARG:
-                            segment = Segment.ARG
-                        else:
-                            segment = Segment.LOCAL
-
-                        self.vm_writer.write_push(segment, index, 1)
-                    elif is_in_class_table:
-                        kind = self.class_symbol_table.kind_of(current_token)
-                        index = self.class_symbol_table.index_of(current_token)
-
-                        if kind == Kind.STATIC:
-                            segment = Segment.STATIC
-                        elif kind == Kind.FIELD:
-                            segment = Segment.THIS
-                        elif kind == Kind.ARG:
-                            segment = Segment.ARG
-                        else:
-                            segment = Segment.LOCAL
-
-                        self.vm_writer.write_push(segment, index, 1)
-                    else:
-                        self.vm_writer.write_push(Segment.POINTER, 0, 1)
-
-                n_args = self.compile_expression_list()
-                if is_method:
-                    n_args = n_args + 1
-
-                self.vm_writer.write_call(function_name, n_args, 1)
-                self.tokenizer.advance()
-
-                return
+                self._compile_term_subroutine_call(current_token)
             elif self.tokenizer.current_token == "[":
-                segment, index = self._lookup_symbol(current_token)
-                self.tokenizer.advance()
-
-                self.vm_writer.write_push(segment, index, 1)
-
-                self.compile_expression(is_do)
-
-                self.vm_writer.write_arithmetic(Command.ADD, 1)
-                self.vm_writer.write_pop(Segment.POINTER, 1, 1)
-                self.vm_writer.write_push(Segment.THAT, 0, 1)
-
-                self.tokenizer.advance()
-
-                return
+                self._compile_term_array_access(current_token, is_do)
             else:
                 segment, index = self._lookup_symbol(current_token)
                 self.vm_writer.write_push(segment, index, 1)
-                return
+            return
 
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST:
@@ -471,14 +389,7 @@ class CompilationEngine:
 
             self.tokenizer.advance()
         elif token_type == TokenType.KEYWORD:
-            if self.tokenizer.key_word() == KeyWord.THIS:
-                self.vm_writer.write_push(Segment.POINTER, 0, 1)
-            elif self.tokenizer.key_word() == KeyWord.TRUE:
-                self.vm_writer.write_push(Segment.CONST, 0, 1)
-                self.vm_writer.write_arithmetic(Command.NOT, 1)
-            elif self.tokenizer.key_word() == KeyWord.FALSE or self.tokenizer.key_word() == KeyWord.NULL:
-                self.vm_writer.write_push(Segment.CONST, 0, 1)
-            self.tokenizer.advance()
+            self._compile_term_keyword_constant()
         elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~":
             command = Command.NEG if self.tokenizer.current_token == "-" else Command.NOT
             self.tokenizer.advance()
@@ -522,3 +433,71 @@ class CompilationEngine:
 
         segment = convert_kind_to_segment(kind)
         return segment, index
+
+    def _compile_term_subroutine_call(self, current_token):
+        is_in_subroutine_table = self.subroutine_symbol_table.table.get(current_token) is not None
+        is_in_class_table = self.class_symbol_table.table.get(current_token) is not None
+        is_method = False
+
+        if self.tokenizer.current_token == ".":
+            self.tokenizer.advance()
+
+            if is_in_subroutine_table or is_in_class_table:
+                # Variable in symbol table — it's an object, so method call
+                if is_in_subroutine_table:
+                    class_name = self.subroutine_symbol_table.type_of(current_token)
+                else:
+                    class_name = self.class_symbol_table.type_of(current_token)
+                function_name = class_name + "." + self.tokenizer.current_token
+                if self.tokenizer.current_token != "new":
+                    is_method = True
+            else:
+                # Not in symbol table — it's a class name, followed by function or constructor call
+                function_name = current_token + "." + self.tokenizer.current_token
+
+            self.tokenizer.advance()
+        else:
+            # Bare subroutine call like draw() — method on this
+            is_method = True
+            function_name = self.current_class_name + "." + current_token
+
+        self.tokenizer.advance()
+
+        # Push object for method calls BEFORE compiling args
+        if is_method:
+            if is_in_subroutine_table or is_in_class_table:
+                segment, index = self._lookup_symbol(current_token)
+                self.vm_writer.write_push(segment, index, 1)
+            else:
+                self.vm_writer.write_push(Segment.POINTER, 0, 1)
+
+        n_args = self.compile_expression_list()
+        if is_method:
+            n_args = n_args + 1
+
+        self.vm_writer.write_call(function_name, n_args, 1)
+        self.tokenizer.advance()
+
+    def _compile_term_array_access(self, current_token, is_do):
+        segment, index = self._lookup_symbol(current_token)
+        self.tokenizer.advance()
+
+        self.vm_writer.write_push(segment, index, 1)
+
+        self.compile_expression(is_do)
+
+        self.vm_writer.write_arithmetic(Command.ADD, 1)
+        self.vm_writer.write_pop(Segment.POINTER, 1, 1)
+        self.vm_writer.write_push(Segment.THAT, 0, 1)
+
+        self.tokenizer.advance()
+
+    def _compile_term_keyword_constant(self):
+        if self.tokenizer.key_word() == KeyWord.THIS:
+            self.vm_writer.write_push(Segment.POINTER, 0, 1)
+        elif self.tokenizer.key_word() == KeyWord.TRUE:
+            self.vm_writer.write_push(Segment.CONST, 0, 1)
+            self.vm_writer.write_arithmetic(Command.NOT, 1)
+        elif self.tokenizer.key_word() == KeyWord.FALSE or self.tokenizer.key_word() == KeyWord.NULL:
+            self.vm_writer.write_push(Segment.CONST, 0, 1)
+        self.tokenizer.advance()
