@@ -1,5 +1,3 @@
-from src.Enums import Kind, Segment
-
 def clean_text(text):
     cleaned = ""
     in_comment = False
@@ -19,7 +17,7 @@ def clean_text(text):
             else:
                 continue
 
-        index = line.find("/**")
+        index = line.find("/*")
         if index != -1:
             in_comment = True
             end_index = line.find("*/")
@@ -47,15 +45,3 @@ def clean_text(text):
         cleaned += line
 
     return cleaned
-
-def convert_kind_to_segment(kind: Kind):
-    if kind == Kind.STATIC:
-        return Segment.STATIC
-    elif kind == Kind.FIELD:
-        return Segment.THIS
-    elif kind == Kind.ARG:
-        return Segment.ARG
-    elif kind == Kind.VAR:
-        return Segment.LOCAL
-    else:
-        raise Exception(f"Cannot convert kind: {kind} to segment")

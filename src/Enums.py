@@ -37,6 +37,12 @@ class Kind(Enum):
     VAR = "local"
     NONE = "none"
 
+    def to_segment(self):
+        segment = _KIND_TO_SEGMENT.get(self)
+        if segment is None:
+            raise Exception(f"Cannot convert kind: {self} to segment")
+        return segment
+
 class Segment(Enum):
     CONST = "constant"
     ARG = "argument"
@@ -46,6 +52,13 @@ class Segment(Enum):
     THAT = "that"
     POINTER = "pointer"
     TEMP = "temp"
+
+_KIND_TO_SEGMENT = {
+    Kind.STATIC: Segment.STATIC,
+    Kind.FIELD:  Segment.THIS,
+    Kind.ARG:    Segment.ARG,
+    Kind.VAR:    Segment.LOCAL,
+}
 
 class Command(Enum):
     ADD = "add"

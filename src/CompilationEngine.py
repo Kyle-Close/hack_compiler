@@ -1,25 +1,23 @@
 from pathlib import Path
 
 from src.Enums import KeyWord, TokenType, Command, Segment, Kind
-from src.Helpers import convert_kind_to_segment
 from src.JackTokenizer import JackTokenizer
 from src.SymbolTable import SymbolTable
 from src.VMWriter import VMWriter
 
 
 class CompilationEngine:
+    OPERATORS = frozenset(["+", "-", "*", "/", "&", "|", "<", ">", "="])
+
     def __init__(self, path: Path):
         self.tokenizer = JackTokenizer(path)
         self.vm_writer = VMWriter(path)
         self.class_symbol_table = SymbolTable()
         self.subroutine_symbol_table = SymbolTable()
-        self.label_count = 0
 
         self.current_class_name = ""
         self.current_subroutine_name = ""
-        self.is_compiling_constructor = False
-        self.is_compiling_method = False
-        self.is_compiling_void = False
+        self.label_count = 0
 
         if self.tokenizer.has_more_tokens():
             self.tokenizer.advance()
@@ -49,6 +47,7 @@ class CompilationEngine:
                 break
 
             kind = Kind.STATIC if keyword == KeyWord.STATIC else Kind.FIELD
+            # keyword - 'static' | 'field'
             self.tokenizer.advance()
 
             # type - int (keyword), char (keyword), boolean (keyword), or className (identifier)
@@ -71,55 +70,36 @@ class CompilationEngine:
 
     def compile_subroutine(self):
         # ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
-        self.subroutine_symbol_table.start_subroutine()
+        while self.tokenizer.token_type() == TokenType.KEYWORD:
+            self.subroutine_symbol_table.start_subroutine()
 
-        token_type = self.tokenizer.token_type()
-        if token_type != TokenType.KEYWORD:
-            return
+            # keyword - constructor | function | method
+            keyword = self.tokenizer.key_word()
+            is_method = keyword == KeyWord.METHOD
+            is_constructor = keyword == KeyWord.CONSTRUCTOR
 
-        # keyword - constructor | function | method
-        if self.tokenizer.key_word() == KeyWord.METHOD:
-            self.is_compiling_method = True
-            self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
-        else:
-            self.is_compiling_method = False
+            if is_method:
+                self.subroutine_symbol_table.define("this", self.current_class_name, Kind.ARG)
 
-        if self.tokenizer.key_word() == KeyWord.CONSTRUCTOR:
-            self.is_compiling_constructor = True
-        else:
-            self.is_compiling_constructor = False
+            self.tokenizer.advance()
 
-        self.tokenizer.advance()
+            # void | type
+            is_void = self.tokenizer.key_word() == KeyWord.VOID
+            self.tokenizer.advance()
 
-        # identifier | keyword - void (keyword) | type -> int (keyword), char (keyword), boolean (keyword), or className (identifier)
-        if self.tokenizer.token_type() == TokenType.IDENTIFIER:
-            self.is_compiling_void = False
-        else:
-            if self.tokenizer.key_word() == KeyWord.VOID:
-                self.is_compiling_void = True
-            else:
-                self.is_compiling_void = False
-        self.tokenizer.advance()
+            # identifier - subroutineName
+            self.current_subroutine_name = self.tokenizer.current_token
+            self.tokenizer.advance()
 
-        # identifier - subroutineName
-        self.current_subroutine_name = self.tokenizer.current_token
+            # symbol - '('
+            self.tokenizer.advance()
 
-        self.tokenizer.advance()
+            self.compile_parameter_list()
 
-        # symbol - '('
-        self.tokenizer.advance()
+            # symbol - ')'
+            self.tokenizer.advance()
 
-        # parameterList
-        self.compile_parameter_list()
-
-        # symbol - ')'
-        self.tokenizer.advance()
-
-        # subroutineBody
-        self.compile_subroutine_body()
-
-        # recurse - compile next subroutine (if exists)
-        self.compile_subroutine()
+            self.compile_subroutine_body(is_constructor, is_method, is_void)
 
     def compile_parameter_list(self):
         if self.tokenizer.current_token == ")":
@@ -143,7 +123,7 @@ class CompilationEngine:
             self.subroutine_symbol_table.define(self.tokenizer.current_token, type_of, Kind.ARG)
             self.tokenizer.advance()
 
-    def compile_subroutine_body(self):
+    def compile_subroutine_body(self, is_constructor: bool, is_method: bool, is_void: bool):
         # '{' varDec* statements '}'
 
         # symbol - '{'
@@ -155,16 +135,16 @@ class CompilationEngine:
         self.vm_writer.write_function(f"{self.current_class_name}.{self.current_subroutine_name}",
                                       self.subroutine_symbol_table.var_count(Kind.VAR))
 
-        if self.is_compiling_constructor:
+        if is_constructor:
             self.vm_writer.write_push(Segment.CONST, self.class_symbol_table.var_count(Kind.FIELD))
             self.vm_writer.write_call("Memory.alloc", 1)
             self.vm_writer.write_pop(Segment.POINTER, 0)
-        elif self.is_compiling_method:
+        elif is_method:
             self.vm_writer.write_push(Segment.ARG, 0)
             self.vm_writer.write_pop(Segment.POINTER, 0)
 
         # statements
-        self.compile_statements()
+        self.compile_statements(is_void)
 
         # symbol - '}'
         self.tokenizer.advance()
@@ -194,7 +174,7 @@ class CompilationEngine:
             # symbol ';'
             self.tokenizer.advance()
 
-    def compile_statements(self):
+    def compile_statements(self, is_void: bool):
         # statement*
         # letStatement | ifStatement | whileStatement | doStatement | returnStatement
 
@@ -203,13 +183,13 @@ class CompilationEngine:
             if keyword == KeyWord.LET:
                 self.compile_let()
             elif keyword == KeyWord.IF:
-                self.compile_if()
+                self.compile_if(is_void)
             elif keyword == KeyWord.WHILE:
-                self.compile_while()
+                self.compile_while(is_void)
             elif keyword == KeyWord.DO:
                 self.compile_do()
             elif keyword == KeyWord.RETURN:
-                self.compile_return()
+                self.compile_return(is_void)
             else:
                 break
 
@@ -226,12 +206,15 @@ class CompilationEngine:
         is_arr = False
         if self.tokenizer.current_token == "[":
             is_arr = True
+            # symbol - '['
             self.tokenizer.advance()
             self.vm_writer.write_push(segment, index)
             self.compile_expression()
             self.vm_writer.write_arithmetic(Command.ADD)
+            # symbol - ']'
             self.tokenizer.advance()
 
+        # symbol - '='
         self.tokenizer.advance()
         self.compile_expression()
 
@@ -243,13 +226,16 @@ class CompilationEngine:
         else:
             self.vm_writer.write_pop(segment, index)
 
+        # symbol - ';'
         self.tokenizer.advance()
 
-    def compile_if(self):
+    def compile_if(self, is_void: bool):
         # 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
         start_label, end_label = self._new_label_pair()
 
+        # keyword - 'if'
         self.tokenizer.advance()
+        # symbol - '('
         self.tokenizer.advance()
 
         self.compile_expression()
@@ -257,35 +243,41 @@ class CompilationEngine:
         self.vm_writer.write_arithmetic(Command.NOT)
         self.vm_writer.write_if(start_label) # if-goto L0
 
+        # symbol - ')'
+        self.tokenizer.advance()
+        # symbol - '{'
         self.tokenizer.advance()
 
-        self.tokenizer.advance()
-
-        self.compile_statements()
+        self.compile_statements(is_void)
 
         self.vm_writer.write_go_to(end_label) # goto L1
         self.vm_writer.write_label(start_label) # label L0
 
+        # symbol - '}'
         self.tokenizer.advance()
 
         if self.tokenizer.key_word() == KeyWord.ELSE:
+            # keyword - 'else'
             self.tokenizer.advance()
+            # symbol - '{'
             self.tokenizer.advance()
 
-            self.compile_statements()
+            self.compile_statements(is_void)
 
+            # symbol - '}'
             self.tokenizer.advance()
 
         self.vm_writer.write_label(end_label)  # label L1
 
-    def compile_while(self):
+    def compile_while(self, is_void: bool):
         # 'while' '(' expression ')' '{' statements '}'
         start_label, end_label = self._new_label_pair()
 
         self.vm_writer.write_label(start_label) # label L0
 
+        # keyword - 'while'
         self.tokenizer.advance()
-
+        # symbol - '('
         self.tokenizer.advance()
 
         self.compile_expression()
@@ -293,50 +285,55 @@ class CompilationEngine:
         self.vm_writer.write_arithmetic(Command.NOT)
         self.vm_writer.write_if(end_label) # if-goto L1
 
+        # symbol - ')'
         self.tokenizer.advance()
+        # symbol - '{'
         self.tokenizer.advance()
 
-        self.compile_statements()
+        self.compile_statements(is_void)
 
         self.vm_writer.write_go_to(start_label) # goto L0
         self.vm_writer.write_label(end_label)
 
+        # symbol - '}'
         self.tokenizer.advance()
 
     def compile_do(self):
         # 'do' routineCall ';'
+        # keyword - 'do'
         self.tokenizer.advance()
 
         self.compile_expression()
 
+        # symbol - ';'
         self.tokenizer.advance()
 
         self.vm_writer.write_pop(Segment.TEMP, 0)
 
-    def compile_return(self):
+    def compile_return(self, is_void: bool):
         # 'return' expression? ';'
+        # keyword - 'return'
         self.tokenizer.advance()
 
         if self.tokenizer.current_token != ";":
             self.compile_expression()
 
+        # symbol - ';'
         self.tokenizer.advance()
 
-        if self.is_compiling_void:
+        if is_void:
             self.vm_writer.write_push(Segment.CONST, 0)
         self.vm_writer.write_return()
 
-    # defer
     def compile_expression(self):
         # term (op term)*
-        operators = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
-
         self.compile_term()
 
-        while self.tokenizer.current_token in operators:
+        while self.tokenizer.current_token in self.OPERATORS:
             is_mult = self.tokenizer.current_token == "*"
             command = Command.from_symbol(self.tokenizer.current_token)
 
+            # symbol - op
             self.tokenizer.advance()
 
             self.compile_term()
@@ -352,6 +349,7 @@ class CompilationEngine:
     def compile_term(self):
         if self.tokenizer.token_type() == TokenType.IDENTIFIER:
             current_token = self.tokenizer.current_token
+            # identifier
             self.tokenizer.advance()
 
             if self.tokenizer.current_token == "(" or self.tokenizer.current_token == ".":
@@ -366,6 +364,7 @@ class CompilationEngine:
         token_type = self.tokenizer.token_type()
         if token_type == TokenType.INT_CONST:
             self.vm_writer.write_push(Segment.CONST, int(self.tokenizer.current_token))
+            # integer constant
             self.tokenizer.advance()
         elif token_type == TokenType.STRING_CONST:
             # push number of char needed to stack
@@ -377,17 +376,21 @@ class CompilationEngine:
                 self.vm_writer.write_push(Segment.CONST, ord(char))
                 self.vm_writer.write_call("String.appendChar", 2)
 
+            # string constant
             self.tokenizer.advance()
         elif token_type == TokenType.KEYWORD:
             self._compile_term_keyword_constant()
         elif self.tokenizer.current_token == "-" or self.tokenizer.current_token == "~":
             command = Command.NEG if self.tokenizer.current_token == "-" else Command.NOT
+            # symbol - unary operator
             self.tokenizer.advance()
             self.compile_term()
             self.vm_writer.write_arithmetic(command)
         elif self.tokenizer.current_token == "(":
+            # symbol - '('
             self.tokenizer.advance()
             self.compile_expression()
+            # symbol - ')'
             self.tokenizer.advance()
 
     def compile_expression_list(self):
@@ -397,14 +400,14 @@ class CompilationEngine:
         if self.tokenizer.current_token == ")":
             return n_args
 
-        n_args = n_args + 1
+        n_args += 1
         self.compile_expression()
 
         while self.tokenizer.current_token == ",":
             # symbol - ','
             self.tokenizer.advance()
 
-            n_args = n_args + 1
+            n_args += 1
             self.compile_expression()
 
         return n_args
@@ -426,8 +429,7 @@ class CompilationEngine:
             kind = self.class_symbol_table.kind_of(name)
             index = self.class_symbol_table.index_of(name)
 
-        segment = convert_kind_to_segment(kind)
-        return segment, index
+        return kind.to_segment(), index
 
     def _compile_term_subroutine_call(self, current_token):
         is_in_subroutine_table = self.subroutine_symbol_table.contains(current_token)
@@ -435,6 +437,7 @@ class CompilationEngine:
         is_method = False
 
         if self.tokenizer.current_token == ".":
+            # symbol - '.'
             self.tokenizer.advance()
 
             if is_in_subroutine_table or is_in_class_table:
@@ -450,12 +453,14 @@ class CompilationEngine:
                 # Not in symbol table — it's a class name, followed by function or constructor call
                 function_name = current_token + "." + self.tokenizer.current_token
 
+            # identifier - subroutineName
             self.tokenizer.advance()
         else:
             # Bare subroutine call like draw() — method on this
             is_method = True
             function_name = self.current_class_name + "." + current_token
 
+        # symbol - '('
         self.tokenizer.advance()
 
         # Push object for method calls BEFORE compiling args
@@ -468,13 +473,15 @@ class CompilationEngine:
 
         n_args = self.compile_expression_list()
         if is_method:
-            n_args = n_args + 1
+            n_args += 1
 
         self.vm_writer.write_call(function_name, n_args)
+        # symbol - ')'
         self.tokenizer.advance()
 
     def _compile_term_array_access(self, current_token):
         segment, index = self._lookup_symbol(current_token)
+        # symbol - '['
         self.tokenizer.advance()
 
         self.vm_writer.write_push(segment, index)
@@ -485,14 +492,17 @@ class CompilationEngine:
         self.vm_writer.write_pop(Segment.POINTER, 1)
         self.vm_writer.write_push(Segment.THAT, 0)
 
+        # symbol - ']'
         self.tokenizer.advance()
 
     def _compile_term_keyword_constant(self):
-        if self.tokenizer.key_word() == KeyWord.THIS:
+        keyword = self.tokenizer.key_word()
+        if keyword == KeyWord.THIS:
             self.vm_writer.write_push(Segment.POINTER, 0)
-        elif self.tokenizer.key_word() == KeyWord.TRUE:
+        elif keyword == KeyWord.TRUE:
             self.vm_writer.write_push(Segment.CONST, 0)
             self.vm_writer.write_arithmetic(Command.NOT)
-        elif self.tokenizer.key_word() == KeyWord.FALSE or self.tokenizer.key_word() == KeyWord.NULL:
+        elif keyword == KeyWord.FALSE or keyword == KeyWord.NULL:
             self.vm_writer.write_push(Segment.CONST, 0)
+        # keyword - 'this' | 'true' | 'false' | 'null'
         self.tokenizer.advance()

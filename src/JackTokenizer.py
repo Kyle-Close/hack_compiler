@@ -4,8 +4,6 @@ from src.Enums import TokenType, KeyWord
 class JackTokenizer:
     SYMBOLS = {"{", "}", "(", ")", "[", "]", ".", ",", ";", "+", "-", "*", "/", "&", "|", "<", ">", "=", "~"}
     DIGITS = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
-    KEYWORDS = {"class", "constructor", "function", "method", "field", "static", "var", "int", "char", "boolean",
-                "void", "true", "false", "null", "this", "let", "do", "if", "else", "while", "return"}
     KEYWORD_MAP = {
         "class": KeyWord.CLASS, "constructor": KeyWord.CONSTRUCTOR, "function": KeyWord.FUNCTION,
         "method": KeyWord.METHOD, "field": KeyWord.FIELD, "static": KeyWord.STATIC,
@@ -16,15 +14,12 @@ class JackTokenizer:
     }
 
     def __init__(self, path):
-        f = open(path)
-        self.input = clean_text(f.read())
+        with open(path) as f:
+            self.input = clean_text(f.read())
         self.current_token = ""
 
     def has_more_tokens(self):
-        if self.input.strip() == "":
-            return False
-        else:
-            return True
+        return bool(self.input.strip())
 
     def advance(self):
         next_char = self.input[0]
@@ -68,7 +63,7 @@ class JackTokenizer:
             self.input = self.input[1:]
 
     def token_type(self):
-        if self.current_token in self.KEYWORDS:
+        if self.current_token in self.KEYWORD_MAP:
             return TokenType.KEYWORD
         elif self.current_token in self.SYMBOLS:
             return TokenType.SYMBOL
